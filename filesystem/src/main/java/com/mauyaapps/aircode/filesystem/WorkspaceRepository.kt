@@ -9,24 +9,24 @@ import java.nio.charset.CodingErrorAction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Рабочая папка проектов. Все операции выполняются в фоне и не выпускают
- * действия за пределы [root]: пути приводятся к каноническому виду (в том числе
- * раскрываются символические ссылки) и проверяются перед каждой операцией.
- * Ошибки возвращаются как [Result] с [WorkspaceException].
- */
 class WorkspaceRepository(rootDir: File) {
 
     val root: File = rootDir.canonicalFile
 
-    /** Создаёт рабочую папку, если её ещё нет. */
     suspend fun ensureRoot() {
         withContext(Dispatchers.IO) { root.mkdirs() }
     }
 
-    /** Плоский список дерева; раскрыты папки из [expanded] (набор путей). */
     suspend fun loadTree(expanded: Set<String>): List<TreeEntry> =
         withContext(Dispatchers.IO) { FileTree.flatten(root, expanded) }
+
+    suspend fun listFolders(dir: File): Result<List<File>> = io {
+        val source = requireInside(dir)
+        if (!source.isDirectory) throw WorkspaceException(Reason.NOT_FOUND)
+        source.listFiles { child -> child.isDirectory }
+            ?.sortedBy { it.name.lowercase() }
+            ?: emptyList()
+    }
 
     suspend fun createFile(parent: File, name: String): Result<File> = io {
         val target = prepareChild(parent, name)
@@ -39,6 +39,8 @@ class WorkspaceRepository(rootDir: File) {
         if (!target.mkdir()) throw WorkspaceException(Reason.IO_ERROR)
         target
     }
+
+    suspend fun saveDraft(parent: File, node: DraftNode): Result<File> = io { saveNode(parent, node) }
 
     suspend fun rename(file: File, newName: String): Result<File> = io {
         val source = requireInside(file)
@@ -60,10 +62,6 @@ class WorkspaceRepository(rootDir: File) {
         if (!target.deleteRecursively()) throw WorkspaceException(Reason.IO_ERROR)
     }
 
-    /**
-     * Читает текстовый файл целиком. Файлы больше [MAX_TEXT_BYTES], с нулевыми байтами
-     * или не в UTF-8 не открываются.
-     */
     suspend fun readText(file: File): Result<String> = io {
         val source = requireInside(file)
         if (!source.isFile) throw WorkspaceException(Reason.NOT_FOUND)
@@ -82,7 +80,6 @@ class WorkspaceRepository(rootDir: File) {
         }
     }
 
-    /** Записывает текст в существующий файл в UTF-8. Запись идёт через временный файл, чтобы не потерять данные при сбое. */
     suspend fun writeText(file: File, text: String): Result<Unit> = io {
         val target = requireInside(file)
         if (!target.isFile) throw WorkspaceException(Reason.NOT_FOUND)
@@ -99,7 +96,23 @@ class WorkspaceRepository(rootDir: File) {
         }
     }
 
-    /** Проверяет родителя и имя, возвращает путь нового элемента, которого ещё нет. */
+    private fun saveNode(parent: File, node: DraftNode): File = when (node) {
+        is DraftFolder -> {
+            val dir = prepareChild(parent, node.name)
+            if (!dir.mkdir()) throw WorkspaceException(Reason.IO_ERROR)
+            node.children.forEach { saveNode(dir, it) }
+            dir
+        }
+
+        is DraftFile -> {
+            val file = prepareChild(parent, node.name)
+            val bytes = node.text.toByteArray(Charsets.UTF_8)
+            if (bytes.size > MAX_TEXT_BYTES) throw WorkspaceException(Reason.TOO_LARGE)
+            file.writeBytes(bytes)
+            file
+        }
+    }
+
     private fun prepareChild(parent: File, name: String): File {
         val dir = requireInside(parent)
         if (!dir.isDirectory) throw WorkspaceException(Reason.NOT_FOUND)
@@ -108,15 +121,7 @@ class WorkspaceRepository(rootDir: File) {
         return target
     }
 
-    private fun validateName(name: String): String {
-        val trimmed = name.trim()
-        val invalid = trimmed.isEmpty() ||
-            trimmed == "." ||
-            trimmed == ".." ||
-            trimmed.any { it == '/' || it == '\u0000' }
-        if (invalid) throw WorkspaceException(Reason.INVALID_NAME)
-        return trimmed
-    }
+    private fun validateName(name: String): String = NameRules.validate(name)
 
     private fun requireInside(file: File): File {
         val canonical = file.canonicalFile
@@ -138,7 +143,6 @@ class WorkspaceRepository(rootDir: File) {
     }
 
     companion object {
-        /** Максимальный размер текстового файла для редактора: 2 МБ. */
         const val MAX_TEXT_BYTES = 2L * 1024 * 1024
     }
 }

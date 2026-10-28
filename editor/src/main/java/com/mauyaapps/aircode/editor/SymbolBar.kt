@@ -18,15 +18,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Символы панели; клавиша Tab добавляется отдельно. */
 private val SYMBOLS = listOf("{", "}", "(", ")", "[", "]", ";", ":")
 
 private const val TAB_LABEL = "Tab"
 
-/**
- * Панель символов над клавиатурой. Нажатия идут прямо в [controller],
- * фокус остаётся в редакторе, поэтому клавиатура не закрывается.
- */
 @Composable
 fun SymbolBar(controller: EditorController, modifier: Modifier = Modifier) {
     Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant) {

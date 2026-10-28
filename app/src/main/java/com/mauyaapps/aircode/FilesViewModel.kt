@@ -3,6 +3,9 @@ package com.mauyaapps.aircode
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.mauyaapps.aircode.filesystem.DraftEntry
+import com.mauyaapps.aircode.filesystem.DraftNode
+import com.mauyaapps.aircode.filesystem.DraftTree
 import com.mauyaapps.aircode.filesystem.TreeEntry
 import com.mauyaapps.aircode.filesystem.WorkspaceException
 import java.io.File
@@ -12,18 +15,28 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Состояние дерева файлов. [error] — причина последней неудачной операции. */
+data class SavePicker(
+    val node: DraftNode,
+    val dir: File,
+    val path: String,
+    val canGoUp: Boolean,
+    val folders: List<File>,
+)
+
 data class FilesUiState(
     val entries: List<TreeEntry> = emptyList(),
+    val drafts: List<DraftEntry> = emptyList(),
+    val picker: SavePicker? = null,
     val error: WorkspaceException.Reason? = null,
 )
 
-/** Логика дерева файлов: раскрытие папок, создание, переименование, удаление. */
 class FilesViewModel(application: Application) : AndroidViewModel(application) {
 
     private val workspace = (application as AirCodeApp).workspace
+    private val drafts = (application as AirCodeApp).drafts
 
     private var expanded: Set<String> = emptySet()
+    private var expandedDrafts: Set<Long> = emptySet()
 
     private val _state = MutableStateFlow(FilesUiState())
     val state: StateFlow<FilesUiState> = _state.asStateFlow()
@@ -33,9 +46,65 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
             workspace.ensureRoot()
             refresh()
         }
+        viewModelScope.launch {
+            drafts.nodes.collect { refreshDrafts() }
+        }
     }
 
-    /** Раскрывает или сворачивает папку. Открытие файлов обрабатывается отдельно. */
+    fun onDraftToggle(id: Long) {
+        expandedDrafts = if (id in expandedDrafts) expandedDrafts - id else expandedDrafts + id
+        refreshDrafts()
+    }
+
+    fun onDraftCreate(parentId: Long?, name: String, isFolder: Boolean) {
+        val result = if (isFolder) drafts.createFolder(parentId, name) else drafts.createFile(parentId, name)
+        result.onSuccess { if (parentId != null) expandedDrafts = expandedDrafts + parentId }
+            .onFailure { reportError(reasonOf(it)) }
+        refreshDrafts()
+    }
+
+    fun onDraftRename(id: Long, newName: String) {
+        drafts.rename(id, newName).onFailure { reportError(reasonOf(it)) }
+    }
+
+    fun onDraftDelete(id: Long) {
+        drafts.delete(id)
+    }
+
+    fun onDraftSave(id: Long) {
+        val node = drafts.find(id) ?: return
+        viewModelScope.launch { openPicker(node, workspace.root) }
+    }
+
+    fun onPickerOpen(dir: File) {
+        val node = _state.value.picker?.node ?: return
+        viewModelScope.launch { openPicker(node, dir) }
+    }
+
+    fun onPickerUp() {
+        val picker = _state.value.picker ?: return
+        val parent = picker.dir.parentFile ?: return
+        viewModelScope.launch { openPicker(picker.node, parent) }
+    }
+
+    fun onPickerDismiss() {
+        _state.update { it.copy(picker = null) }
+    }
+
+    fun onPickerConfirm() {
+        val picker = _state.value.picker ?: return
+        viewModelScope.launch {
+            workspace.saveDraft(picker.dir, picker.node)
+                .onSuccess {
+                    expanded = expanded + picker.dir.path
+                    drafts.delete(picker.node.id)
+                    _state.update { it.copy(picker = null) }
+                }
+                .onFailure { reportError(reasonOf(it)) }
+            refresh()
+        }
+    }
+
     fun onEntryClick(entry: TreeEntry) {
         if (!entry.isDirectory) return
         val key = entry.file.path
@@ -43,7 +112,6 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { refresh() }
     }
 
-    /** Создаёт файл или папку внутри [parent]; null означает корень рабочей папки. */
     fun onCreate(parent: File?, name: String, isFolder: Boolean) {
         val target = parent ?: workspace.root
         launchAction {
@@ -65,7 +133,6 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         launchAction { workspace.delete(file) }
     }
 
-    /** Показывает ошибку, возникшую вне дерева (например, при открытии файла). */
     fun reportError(reason: WorkspaceException.Reason) {
         _state.update { it.copy(error = reason) }
     }
@@ -77,11 +144,29 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
     private fun launchAction(action: suspend () -> Result<*>) {
         viewModelScope.launch {
             action().onFailure { e ->
-                reportError((e as? WorkspaceException)?.reason ?: WorkspaceException.Reason.IO_ERROR)
+                reportError(reasonOf(e))
             }
             refresh()
         }
     }
+
+    private suspend fun openPicker(node: DraftNode, dir: File) {
+        workspace.listFolders(dir)
+            .onSuccess { folders ->
+                val relative = if (dir == workspace.root) "" else dir.relativeTo(workspace.root).path
+                val picker = SavePicker(node, dir, relative, canGoUp = dir != workspace.root, folders = folders)
+                _state.update { it.copy(picker = picker) }
+            }
+            .onFailure { reportError(reasonOf(it)) }
+    }
+
+    private fun refreshDrafts() {
+        val entries = DraftTree.flatten(drafts.nodes.value, expandedDrafts)
+        _state.update { it.copy(drafts = entries) }
+    }
+
+    private fun reasonOf(e: Throwable): WorkspaceException.Reason =
+        (e as? WorkspaceException)?.reason ?: WorkspaceException.Reason.IO_ERROR
 
     private suspend fun refresh() {
         val entries = workspace.loadTree(expanded)

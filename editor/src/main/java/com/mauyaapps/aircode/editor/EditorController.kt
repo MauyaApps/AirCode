@@ -6,22 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.json.JSONObject
 
-/**
- * Управляет редактором в WebView: отправляет команды в JS и принимает события.
- * Все методы вызываются из главного потока. Список вкладок задаётся через [sync];
- * если редактор ещё не готов, применяется последнее заданное состояние.
- */
 class EditorController {
 
-    /** Текущая позиция курсора. */
     var cursor by mutableStateOf(EditorCursor(line = 1, column = 1))
         private set
 
-    /** Результат поиска по файлу; обновляется после каждого запроса и правки текста. */
     var searchResult by mutableStateOf(SearchResult(current = 0, total = 0))
         private set
 
-    /** Вызывается, когда пользователь изменил текст. */
     internal var onChanged: () -> Unit = {}
 
     private var webView: WebView? = null
@@ -31,23 +23,17 @@ class EditorController {
     private var documents: List<EditorDocument> = emptyList()
     private var activeId: Long? = null
 
-    // Вкладки, уже переданные в редактор, и вкладка, показанная в нём сейчас
     private val loaded = mutableSetOf<Long>()
     private var shownId: Long? = null
     private var nextRequestId = 0
     private val textRequests = mutableMapOf<Int, TextRequest>()
 
-    /**
-     * Приводит редактор к списку вкладок: новые загружает, исчезнувшие забывает,
-     * активную показывает. История отмены каждой вкладки сохраняется в редакторе.
-     */
     fun sync(documents: List<EditorDocument>, activeId: Long?) {
         this.documents = documents
         this.activeId = activeId
         if (isReady) apply()
     }
 
-    /** Запрашивает текущий текст вкладки [tabId]. Результат придёт в [onResult] в главном потоке. */
     fun requestText(tabId: Long, onResult: (String) -> Unit) {
         if (!isReady) return
         val id = nextRequestId++
@@ -55,17 +41,14 @@ class EditorController {
         evaluate("AirCode.requestText($id, $tabId)")
     }
 
-    /** Вставляет [text] на место выделения. Редактор сохраняет фокус и клавиатуру. */
     fun insertText(text: String) {
         if (isReady) evaluate("AirCode.insertText(${JSONObject.quote(text)})")
     }
 
-    /** Увеличивает отступ так же, как клавиша Tab. */
     fun indent() {
         if (isReady) evaluate("AirCode.indent()")
     }
 
-    /** Ищет [query] в активной вкладке и выбирает первое совпадение от курсора. */
     fun find(query: String, caseSensitive: Boolean) {
         if (isReady) evaluate("AirCode.find(${JSONObject.quote(query)}, $caseSensitive)")
     }
@@ -78,13 +61,11 @@ class EditorController {
         if (isReady) evaluate("AirCode.findPrevious()")
     }
 
-    /** Заканчивает поиск: убирает подсветку и сбрасывает счётчик. */
     fun clearSearch() {
         searchResult = SearchResult(current = 0, total = 0)
         if (isReady) evaluate("AirCode.clearSearch()")
     }
 
-    /** Включает или выключает подсказки при вводе. */
     internal fun setAutocomplete(enabled: Boolean) {
         autocompleteEnabled = enabled
         if (isReady) evaluate("AirCode.setAutocomplete($enabled)")
@@ -167,7 +148,6 @@ class EditorController {
     }
 
     private companion object {
-        /** Размер порции текста в символах, совпадает с CHUNK_SIZE в main.js. */
         const val CHUNK_SIZE = 100_000
     }
 }

@@ -24,10 +24,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
-/** Команда палитры: название и действие. */
 data class PaletteCommand(val title: String, val action: () -> Unit)
 
-/** Командная палитра: строка фильтра и список команд, подходящих под введённый текст. */
 @Composable
 fun CommandPalette(
     commands: List<PaletteCommand>,

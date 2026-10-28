@@ -1,6 +1,3 @@
-// Веб-часть редактора AirCode: CodeMirror 6 внутри WebView.
-// Связь с Kotlin: события уходят через AirCodeBridge.postMessage(JSON),
-// команды приходят вызовами функций объекта window.AirCode.
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -35,14 +32,11 @@ import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 import { csharp, objectiveC } from "@codemirror/legacy-modes/mode/clike";
 
-// Размер порции текста при передаче между Kotlin и JS (в символах)
 const CHUNK_SIZE = 100000;
 
 const LIGHT_BACKGROUND = "#ffffff";
 const DARK_BACKGROUND = "#282c34";
 
-// Язык Cream (https://github.com/MauyaApps/cream-lang, лицензия MIT).
-// Слова взяты из грамматики cream.tmLanguage.json и docs/syntax.md репозитория.
 const CREAM_KEYWORDS = [
   "if", "else", "in", "repeat", "while", "try", "action", "task", "struct", "import",
   "return", "wait", "together", "say", "and", "or", "not", "for each", "on error", "or if",
@@ -106,7 +100,6 @@ const creamParser = {
   },
 };
 
-// Идентификаторы языков совпадают с EditorLanguage.kt
 const languages = {
   javascript: () => javascript({ jsx: true }),
   python: () => python(),
@@ -118,21 +111,14 @@ const languages = {
 };
 
 const themeCompartment = new Compartment();
-// Автодополнение включается только по разрешению пользователя (по умолчанию выключено)
 const autocompleteCompartment = new Compartment();
 let dark = false;
 let autocompleteEnabled = false;
-// Пока true, поиск открыт и Kotlin получает число совпадений
 let searchActive = false;
-// Максимум совпадений, которые считаем; дальше число не растёт
 const SEARCH_COUNT_LIMIT = 10000;
-// Пока true, изменения документа считаются программными и Kotlin о них не уведомляется
 let loading = false;
-// Документ, который сейчас передаётся порциями
 let incoming = null;
-// Состояния закрытых от просмотра вкладок (вместе с историей отмены), ключ — id вкладки
 const states = new Map();
-// Вкладка, показанная в редакторе сейчас; null, если ни одна
 let currentId = null;
 
 function post(message) {
@@ -155,10 +141,8 @@ function autocompleteExtension() {
   return autocompleteEnabled ? autocompletion() : [];
 }
 
-// Запрос текущего поиска; null, пока поиск закрыт
 let currentQuery = null;
 
-// Считает совпадения и номер выбранного, отправляет в Kotlin
 function postSearch(state) {
   let total = 0;
   let current = 0;
@@ -190,7 +174,6 @@ const baseExtensions = [
   bracketMatching(),
   closeBrackets(),
   highlightActiveLine(),
-  // Только подсветка совпадений: панель поиска рисует Compose, горячих клавиш нет
   search(),
   keymap.of([
     ...closeBracketsKeymap,
@@ -235,8 +218,6 @@ function applyPageBackground() {
 }
 
 window.AirCode = {
-  // Загрузка вкладки порциями: beginOpen -> appendChunk * N -> endOpen.
-  // Вкладка только запоминается, показывает её show(id)
   beginOpen(id, language) {
     incoming = { id, language, parts: [] };
   },
@@ -252,7 +233,6 @@ window.AirCode = {
     states.set(id, createState(parts.join(""), language));
   },
 
-  // Переключает редактор на вкладку, сохранив состояние текущей
   show(id) {
     const next = states.get(id);
     if (!next || currentId === id) return;
@@ -260,7 +240,6 @@ window.AirCode = {
     loading = true;
     try {
       view.setState(next);
-      // Вкладка могла быть создана при другой теме или настройке автодополнения
       view.dispatch({
         effects: [
           themeCompartment.reconfigure(themeExtension()),
@@ -275,7 +254,6 @@ window.AirCode = {
     view.focus();
   },
 
-  // Забывает вкладку
   close(id) {
     states.delete(id);
     if (currentId === id) currentId = null;
@@ -292,13 +270,11 @@ window.AirCode = {
     view.dispatch({ effects: autocompleteCompartment.reconfigure(autocompleteExtension()) });
   },
 
-  // Поиск по файлу. Выбирает первое совпадение от курсора и шлёт {type:"search"}
   find(text, caseSensitive) {
     searchActive = true;
     currentQuery = new SearchQuery({ search: text, caseSensitive });
     view.dispatch({ effects: setSearchQuery.of(currentQuery) });
     if (currentQuery.valid) {
-      // Начинаем с начала текущего выделения, чтобы при наборе не уходить вперёд
       view.dispatch({ selection: { anchor: view.state.selection.main.from } });
       findNext(view);
     }
@@ -317,14 +293,12 @@ window.AirCode = {
     postSearch(view.state);
   },
 
-  // Закрывает поиск и убирает подсветку
   clearSearch() {
     searchActive = false;
     currentQuery = null;
     view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: "" })) });
   },
 
-  // Вставляет текст на место выделения (панель символов)
   insertText(text) {
     view.dispatch(view.state.replaceSelection(text), {
       scrollIntoView: true,
@@ -332,15 +306,12 @@ window.AirCode = {
     });
   },
 
-  // Увеличивает отступ, как клавиша Tab (панель символов)
   indent() {
     indentMore(view);
   },
 
-  // Отправляет текст документа в Kotlin порциями
   requestText(requestId, id) {
     const state = id === currentId ? view.state : states.get(id);
-    // Неизвестная вкладка: ничего не отправляем, чтобы не записать пустой файл
     if (!state) return;
     const text = state.doc.toString();
     const total = Math.max(1, Math.ceil(text.length / CHUNK_SIZE));

@@ -15,10 +15,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.mauyaapps.aircode.editor.PreviewKind
 import com.mauyaapps.aircode.editor.PreviewView
 
-/** Снимок файла для просмотра: вид, имя и текст на момент открытия. */
 data class PreviewState(val kind: PreviewKind, val fileName: String, val text: String)
 
-/** Полноэкранный просмотр Markdown или HTML. Назад и кнопка «×» закрывают его. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreviewScreen(

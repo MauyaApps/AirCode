@@ -22,14 +22,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.mauyaapps.aircode.editor.SearchResult
 
-/** Панель поиска по файлу: запрос, счётчик совпадений, регистр, вперёд, назад, закрыть. */
 @Composable
 fun FindBar(
     query: String,
     onQueryChange: (String) -> Unit,
     caseSensitive: Boolean,
     onCaseSensitiveChange: (Boolean) -> Unit,
-    result: SearchResult,
+    result: () -> SearchResult,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onClose: () -> Unit,
@@ -37,6 +36,7 @@ fun FindBar(
 ) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val searchResult = result()
 
     Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant) {
         Row(
@@ -56,7 +56,7 @@ fun FindBar(
             )
             if (query.isNotEmpty()) {
                 Text(
-                    text = stringResource(R.string.search_count, result.current, result.total),
+                    text = stringResource(R.string.search_count, searchResult.current, searchResult.total),
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 6.dp),
                 )
@@ -71,8 +71,8 @@ fun FindBar(
                     },
                 )
             }
-            TextButton(onClick = onPrevious, enabled = result.total > 0) { Text(UP_GLYPH) }
-            TextButton(onClick = onNext, enabled = result.total > 0) { Text(DOWN_GLYPH) }
+            TextButton(onClick = onPrevious, enabled = searchResult.total > 0) { Text(UP_GLYPH) }
+            TextButton(onClick = onNext, enabled = searchResult.total > 0) { Text(DOWN_GLYPH) }
             TextButton(onClick = onClose) { Text(CLOSE_GLYPH) }
         }
     }

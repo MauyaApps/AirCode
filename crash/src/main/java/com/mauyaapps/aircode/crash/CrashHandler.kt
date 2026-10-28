@@ -7,7 +7,6 @@ import android.os.Process
 import java.io.File
 import kotlin.system.exitProcess
 
-/** Перехватывает необработанные исключения и показывает экран краша. */
 object CrashHandler {
 
     private const val MAX_REPORT_LENGTH = 50_000
@@ -15,7 +14,6 @@ object CrashHandler {
 
     fun install(context: Context) {
         val app = context.applicationContext
-        // В процессе экрана краша обработчик не ставим, чтобы не зациклиться
         if (currentProcessName().endsWith(CRASH_PROCESS_SUFFIX)) return
 
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -37,7 +35,6 @@ object CrashHandler {
         }
     }
 
-    /** Отчёт: версия приложения, устройство и стек ошибки. Содержимое файлов и ключи не включаются. */
     private fun buildReport(context: Context, throwable: Throwable): String {
         val versionName = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName

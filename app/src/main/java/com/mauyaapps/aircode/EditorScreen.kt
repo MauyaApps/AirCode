@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,11 +41,6 @@ import com.mauyaapps.aircode.editor.SymbolBar
 import com.mauyaapps.aircode.editor.previewKindForFile
 import com.mauyaapps.aircode.theme.ThemeMode
 
-/**
- * Экран редактора: верхняя панель, вкладки, поиск, редактор и строка состояния. Пока открыта
- * хотя бы одна вкладка, экран остаётся в композиции (поверх него может лежать список файлов),
- * чтобы WebView не уничтожался и несохранённые правки не терялись. [visible] говорит, виден ли он.
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(
@@ -58,11 +54,11 @@ fun EditorScreen(
     onCloseTab: (Long) -> Unit,
     onShowFiles: () -> Unit,
     onThemeSelected: (ThemeMode) -> Unit,
+    onOpenThemeSettings: () -> Unit,
     onAutocompleteChange: (Boolean) -> Unit,
     onErrorShown: () -> Unit,
 ) {
     val controller = remember { EditorController() }
-    // Вкладка, закрытие которой ждёт ответа на вопрос о сохранении
     var askSaveFor by remember { mutableStateOf<EditorTab?>(null) }
     var askAutocomplete by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -85,8 +81,9 @@ fun EditorScreen(
     LaunchedEffect(visible) { if (!visible) keyboard?.hide() }
 
     val active = state.active
-    val fileName = active?.file?.name.orEmpty()
-    val previewKind = active?.let { previewKindForFile(it.file.name) }
+    val documents = remember(state.tabs) { state.tabs.map { it.document } }
+    val fileName = active?.name.orEmpty()
+    val previewKind = active?.let { previewKindForFile(it.name) }
 
     fun save(tab: EditorTab, thenClose: Boolean) {
         controller.requestText(tab.id) { text -> onSave(tab.id, text, thenClose) }
@@ -95,6 +92,11 @@ fun EditorScreen(
     fun requestClose(tabId: Long) {
         val tab = state.tabs.firstOrNull { it.id == tabId } ?: return
         if (tab.isDirty) askSaveFor = tab else onCloseTab(tabId)
+    }
+
+    fun showFiles() {
+        state.tabs.filter { it.isDirty && it.draftId != null }.forEach { save(it, thenClose = false) }
+        onShowFiles()
     }
 
     fun openSearch() {
@@ -110,57 +112,21 @@ fun EditorScreen(
 
     fun openPreview() {
         val tab = active ?: return
-        val kind = previewKindForFile(tab.file.name) ?: return
+        val kind = previewKindForFile(tab.name) ?: return
         keyboard?.hide()
-        controller.requestText(tab.id) { text -> preview = PreviewState(kind, tab.file.name, text) }
+        controller.requestText(tab.id) { text -> preview = PreviewState(kind, tab.name, text) }
     }
 
-    // Поиск относится к одной вкладке, поэтому при переключении закрывается
     LaunchedEffect(state.activeId) { if (searchOpen) closeSearch() }
 
-    // Порядок важен: обработчик, объявленный ниже, срабатывает раньше
-    // Назад закрывает активную вкладку, а когда закрыта последняя, открывается список файлов
     BackHandler(enabled = visible && active != null) { active?.let { requestClose(it.id) } }
     BackHandler(enabled = visible && searchOpen) { closeSearch() }
 
-    val saveTitle = stringResource(R.string.cmd_save)
-    val findTitle = stringResource(R.string.find_in_file)
-    val closeTabTitle = stringResource(R.string.cmd_close_tab)
-    val showFilesTitle = stringResource(R.string.cmd_show_files)
-    val previewTitle = stringResource(R.string.cmd_preview)
-    val themeSystemTitle = stringResource(R.string.cmd_theme_system)
-    val themeLightTitle = stringResource(R.string.cmd_theme_light)
-    val themeDarkTitle = stringResource(R.string.cmd_theme_dark)
-    val autocompleteTitle = stringResource(
-        if (autocompleteEnabled) R.string.cmd_autocomplete_off else R.string.cmd_autocomplete_on,
-    )
-    val gotoTabFormat = R.string.cmd_goto_tab
-    val commands = buildList {
-        if (active != null) {
-            if (active.isDirty) add(PaletteCommand(saveTitle) { save(active, thenClose = false) })
-            add(PaletteCommand(findTitle) { openSearch() })
-            if (previewKind != null) add(PaletteCommand(previewTitle) { openPreview() })
-            add(PaletteCommand(closeTabTitle) { requestClose(active.id) })
-        }
-        add(PaletteCommand(showFilesTitle) { onShowFiles() })
-        add(PaletteCommand(themeSystemTitle) { onThemeSelected(ThemeMode.SYSTEM) })
-        add(PaletteCommand(themeLightTitle) { onThemeSelected(ThemeMode.LIGHT) })
-        add(PaletteCommand(themeDarkTitle) { onThemeSelected(ThemeMode.DARK) })
-        add(
-            PaletteCommand(autocompleteTitle) {
-                // Включение требует согласия пользователя, выключение сразу
-                if (autocompleteEnabled) onAutocompleteChange(false) else askAutocomplete = true
-            },
-        )
-        state.tabs.filter { it.id != state.activeId }.forEach { tab ->
-            val title = stringResource(gotoTabFormat, tab.file.name)
-            add(PaletteCommand(title) { onSelectTab(tab.id) })
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(alpha = if (preview != null) 0f else 1f),
             topBar = {
                 TopAppBar(
                     title = {
@@ -171,7 +137,7 @@ fun EditorScreen(
                         )
                     },
                     navigationIcon = {
-                        TextButton(onClick = onShowFiles) { Text(FILES_GLYPH) }
+                        TextButton(onClick = ::showFiles) { Text(FILES_GLYPH) }
                     },
                     actions = {
                         TextButton(
@@ -239,7 +205,7 @@ fun EditorScreen(
                             caseSensitive = it
                             controller.find(query, it)
                         },
-                        result = controller.searchResult,
+                        result = { controller.searchResult },
                         onNext = controller::findNext,
                         onPrevious = controller::findPrevious,
                         onClose = ::closeSearch,
@@ -247,7 +213,7 @@ fun EditorScreen(
                 }
                 EditorView(
                     controller = controller,
-                    documents = state.tabs.map { it.document },
+                    documents = documents,
                     activeId = state.activeId,
                     darkTheme = darkTheme,
                     autocompleteEnabled = autocompleteEnabled,
@@ -256,17 +222,8 @@ fun EditorScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                 )
-                // В строке поиска символы панели вставлялись бы в текст, а не в запрос
-                if (WindowInsets.isImeVisible && !searchOpen) SymbolBar(controller)
-                Text(
-                    text = stringResource(
-                        R.string.cursor_position,
-                        controller.cursor.line,
-                        controller.cursor.column,
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                )
+                if (!searchOpen) ImeSymbolBar(controller)
+                CursorStatus(controller)
             }
         }
 
@@ -280,6 +237,41 @@ fun EditorScreen(
     }
 
     if (paletteOpen) {
+        val saveTitle = stringResource(R.string.cmd_save)
+        val findTitle = stringResource(R.string.find_in_file)
+        val closeTabTitle = stringResource(R.string.cmd_close_tab)
+        val showFilesTitle = stringResource(R.string.cmd_show_files)
+        val previewTitle = stringResource(R.string.cmd_preview)
+        val themeSettingsTitle = stringResource(R.string.cmd_theme_settings)
+        val themeSystemTitle = stringResource(R.string.cmd_theme_system)
+        val themeLightTitle = stringResource(R.string.cmd_theme_light)
+        val themeDarkTitle = stringResource(R.string.cmd_theme_dark)
+        val autocompleteTitle = stringResource(
+            if (autocompleteEnabled) R.string.cmd_autocomplete_off else R.string.cmd_autocomplete_on,
+        )
+        val gotoTabFormat = R.string.cmd_goto_tab
+        val commands = buildList {
+            if (active != null) {
+                if (active.isDirty) add(PaletteCommand(saveTitle) { save(active, thenClose = false) })
+                add(PaletteCommand(findTitle) { openSearch() })
+                if (previewKind != null) add(PaletteCommand(previewTitle) { openPreview() })
+                add(PaletteCommand(closeTabTitle) { requestClose(active.id) })
+            }
+            add(PaletteCommand(showFilesTitle) { showFiles() })
+            add(PaletteCommand(themeSettingsTitle) { onOpenThemeSettings() })
+            add(PaletteCommand(themeSystemTitle) { onThemeSelected(ThemeMode.SYSTEM) })
+            add(PaletteCommand(themeLightTitle) { onThemeSelected(ThemeMode.LIGHT) })
+            add(PaletteCommand(themeDarkTitle) { onThemeSelected(ThemeMode.DARK) })
+            add(
+                PaletteCommand(autocompleteTitle) {
+                    if (autocompleteEnabled) onAutocompleteChange(false) else askAutocomplete = true
+                },
+            )
+            state.tabs.filter { it.id != state.activeId }.forEach { tab ->
+                val title = stringResource(gotoTabFormat, tab.name)
+                add(PaletteCommand(title) { onSelectTab(tab.id) })
+            }
+        }
         CommandPalette(commands = commands, onDismiss = { paletteOpen = false })
     }
 
@@ -306,7 +298,7 @@ fun EditorScreen(
         AlertDialog(
             onDismissRequest = { askSaveFor = null },
             title = { Text(stringResource(R.string.unsaved_title)) },
-            text = { Text(stringResource(R.string.unsaved_text, tab.file.name)) },
+            text = { Text(stringResource(R.string.unsaved_text, tab.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     askSaveFor = null
@@ -330,3 +322,22 @@ fun EditorScreen(
 
 private const val FILES_GLYPH = "☰"
 private const val MORE_GLYPH = "⋮"
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ImeSymbolBar(controller: EditorController) {
+    if (WindowInsets.isImeVisible) SymbolBar(controller)
+}
+
+@Composable
+private fun CursorStatus(controller: EditorController) {
+    Text(
+        text = stringResource(
+            R.string.cursor_position,
+            controller.cursor.line,
+            controller.cursor.column,
+        ),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+    )
+}

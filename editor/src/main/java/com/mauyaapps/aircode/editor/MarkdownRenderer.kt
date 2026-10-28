@@ -5,21 +5,18 @@ import org.commonmark.ext.gfm.tables.TablesExtension
 import org.commonmark.parser.Parser
 import org.commonmark.renderer.html.HtmlRenderer
 
-/** Превращает Markdown в самостоятельную HTML-страницу для просмотра. */
 object MarkdownRenderer {
 
     private val extensions = listOf(TablesExtension.create(), StrikethroughExtension.create())
 
     private val parser: Parser = Parser.builder().extensions(extensions).build()
 
-    // HTML внутри Markdown экранируется, опасные ссылки (javascript:) отбрасываются
     private val renderer: HtmlRenderer = HtmlRenderer.builder()
         .extensions(extensions)
         .escapeHtml(true)
         .sanitizeUrls(true)
         .build()
 
-    /** Готовая страница с оформлением под светлую или тёмную тему. */
     fun renderPage(markdown: String, dark: Boolean): String {
         val body = renderer.render(parser.parse(markdown))
         return """

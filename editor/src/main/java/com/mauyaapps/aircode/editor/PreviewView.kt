@@ -9,11 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 
-/**
- * Просмотр Markdown или HTML в отдельном WebView. Доступа к файлам и к мосту редактора нет,
- * сетевые загрузки заблокированы, переходы по ссылкам запрещены. В HTML скрипты работают,
- * потому что пользователь мог написать их сам, в Markdown скрипты выключены.
- */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PreviewView(
@@ -26,6 +21,7 @@ fun PreviewView(
         modifier = modifier,
         factory = { context ->
             WebView(context).apply {
+                disableForcedDarkening()
                 settings.apply {
                     javaScriptEnabled = kind == PreviewKind.HTML
                     allowFileAccess = false
@@ -33,7 +29,6 @@ fun PreviewView(
                     blockNetworkLoads = true
                     domStorageEnabled = false
                 }
-                // Своя HTML-страница без фона должна быть читаемой в любой теме приложения
                 setBackgroundColor(if (kind == PreviewKind.HTML) Color.WHITE else Color.TRANSPARENT)
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(

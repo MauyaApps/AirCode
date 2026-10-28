@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** Панель вкладок открытых файлов. Изменённая вкладка помечена точкой. */
 @Composable
 fun EditorTabBar(
     tabs: List<EditorTab>,
@@ -40,7 +39,7 @@ fun EditorTabBar(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = if (tab.isDirty) "${tab.file.name} •" else tab.file.name,
+                            text = if (tab.isDirty) "${tab.name} •" else tab.name,
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

@@ -15,10 +15,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 private const val EDITOR_URL = "file:///android_asset/editor/index.html"
 private const val BRIDGE_NAME = "AirCodeBridge"
 
-/**
- * Редактор кода на CodeMirror 6 внутри WebView. Страница загружается из assets,
- * сети у неё нет: загрузки из интернета заблокированы, переходы по ссылкам запрещены.
- */
 @Composable
 fun EditorView(
     controller: EditorController,
@@ -47,6 +43,7 @@ fun EditorView(
 @SuppressLint("SetJavaScriptEnabled")
 private fun createWebView(context: Context, controller: EditorController): WebView {
     val webView = WebView(context)
+    webView.disableForcedDarkening()
     webView.settings.apply {
         javaScriptEnabled = true
         allowContentAccess = false
@@ -61,7 +58,6 @@ private fun createWebView(context: Context, controller: EditorController): WebVi
     }
     webView.addJavascriptInterface(
         EditorBridge { json ->
-            // Мост вызывается из фонового потока, а контроллер работает в главном
             webView.post { EditorMessageParser.parse(json)?.let(controller::handle) }
         },
         BRIDGE_NAME,

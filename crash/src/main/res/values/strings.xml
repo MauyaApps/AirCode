@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Адрес для отчётов о крахе -->
     <string name="crash_report_email" translatable="false">aircodemgr@gmail.com</string>
     <string name="crash_title">Приложение неожиданно остановилось</string>
     <string name="crash_description">Вы можете отправить отчёт разработчику. В отчёте только сведения об устройстве и ошибке, без ваших файлов и ключей.</string>

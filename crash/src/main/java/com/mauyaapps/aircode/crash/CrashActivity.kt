@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import com.mauyaapps.aircode.theme.AirCodeTheme
 import com.mauyaapps.aircode.theme.ThemeMode
 
-/** Экран краша: показывает отчёт, даёт отправить его на почту или перезапустить приложение. */
 class CrashActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

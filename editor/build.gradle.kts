@@ -26,12 +26,11 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
-    // Markdown в HTML для просмотра
+    implementation(libs.androidx.webkit)
     implementation(libs.commonmark)
     implementation(libs.commonmark.gfm.tables)
     implementation(libs.commonmark.gfm.strikethrough)
 
     testImplementation(libs.junit)
-    // Настоящая реализация org.json для модульных тестов (в android.jar только заглушки)
     testImplementation(libs.json)
 }

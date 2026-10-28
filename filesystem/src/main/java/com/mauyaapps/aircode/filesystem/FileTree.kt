@@ -2,14 +2,8 @@ package com.mauyaapps.aircode.filesystem
 
 import java.io.File
 
-/** Построение плоского списка дерева файлов для отображения. */
 object FileTree {
 
-    /**
-     * Возвращает записи рабочей папки в порядке обхода: сначала папки, затем файлы,
-     * внутри групп — по имени без учёта регистра. Содержимое показывается только
-     * у папок, чей путь есть в [expanded].
-     */
     fun flatten(root: File, expanded: Set<String>): List<TreeEntry> {
         val result = mutableListOf<TreeEntry>()
 

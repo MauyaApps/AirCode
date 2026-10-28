@@ -15,7 +15,6 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # Gradle ставится самим workflow, поэтому gradle-wrapper.jar в репозитории не нужен
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.9
@@ -28,7 +27,6 @@ jobs:
           name: aircode-debug
           path: app/build/outputs/apk/debug/*.apk
 
-      # Тесты не блокируют выдачу APK, но их результат виден в логе
       - name: Модульные тесты
         continue-on-error: true
         run: gradle testDebugUnitTest
