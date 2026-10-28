@@ -150,7 +150,7 @@ fun EditorScreen(
                             TextButton(onClick = { menuOpen = true }) { Text(MORE_GLYPH) }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
-                                    text = { Text(findTitle) },
+                                    text = { Text(stringResource(R.string.find_in_file)) },
                                     onClick = {
                                         menuOpen = false
                                         openSearch()
@@ -165,7 +165,7 @@ fun EditorScreen(
                                 )
                                 if (previewKind != null) {
                                     DropdownMenuItem(
-                                        text = { Text(previewTitle) },
+                                        text = { Text(stringResource(R.string.cmd_preview)) },
                                         onClick = {
                                             menuOpen = false
                                             openPreview()

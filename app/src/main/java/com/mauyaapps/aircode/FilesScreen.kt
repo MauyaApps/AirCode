@@ -42,6 +42,8 @@ import com.mauyaapps.aircode.filesystem.DraftFolder
 import com.mauyaapps.aircode.filesystem.TreeEntry
 import java.io.File
 
+private const val MENU_GLYPH = "⋮"
+
 private sealed interface FilesDialog {
     data class NewItem(val parent: File?, val isFolder: Boolean) : FilesDialog
     data class Rename(val file: File) : FilesDialog
