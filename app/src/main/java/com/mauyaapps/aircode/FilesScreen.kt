@@ -95,7 +95,7 @@ fun FilesScreen(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     Box {
-                        TextButton(onClick = { topMenuOpen = true }) { Text(MENU_GLYPH) }
+                        TextButton(onClick = { topMenuOpen = true }) { Text("⋮") }
                         DropdownMenu(
                             expanded = topMenuOpen,
                             onDismissRequest = { topMenuOpen = false },
@@ -308,7 +308,7 @@ private fun TreeRow(
             overflow = TextOverflow.Ellipsis,
         )
         Box {
-            TextButton(onClick = { menuOpen = true }) { Text(MENU_GLYPH) }
+            TextButton(onClick = { menuOpen = true }) { Text("⋮") }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 if (entry.isDirectory) {
                     MenuItem(R.string.new_file) {
@@ -369,7 +369,7 @@ private fun DraftRow(
             overflow = TextOverflow.Ellipsis,
         )
         Box {
-            TextButton(onClick = { menuOpen = true }) { Text(MENU_GLYPH) }
+            TextButton(onClick = { menuOpen = true }) { Text("⋮") }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 if (isFolder) {
                     MenuItem(R.string.new_file) {
@@ -477,3 +477,4 @@ private fun NameDialog(
         },
     )
 }
+
