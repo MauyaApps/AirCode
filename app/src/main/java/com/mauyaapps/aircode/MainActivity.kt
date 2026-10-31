@@ -1,14 +1,20 @@
 package com.mauyaapps.aircode
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -22,11 +28,23 @@ import com.mauyaapps.aircode.theme.AirCodeTheme
 import com.mauyaapps.aircode.theme.isDarkTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val drafts = (application as AirCodeApp).drafts
+            val terminal = (application as AirCodeApp).terminal
             val mainViewModel: MainViewModel = viewModel()
             val filesViewModel: FilesViewModel = viewModel()
             val editorViewModel: EditorViewModel = viewModel()
@@ -37,6 +55,10 @@ class MainActivity : ComponentActivity() {
             val listState = rememberLazyListState()
             var showFiles by rememberSaveable { mutableStateOf(false) }
             var showThemeSettings by rememberSaveable { mutableStateOf(false) }
+            var showTerminal by rememberSaveable { mutableStateOf(false) }
+            val terminalSessions by terminal.sessions.collectAsStateWithLifecycle()
+            val hasTerminalSessions = terminalSessions.isNotEmpty()
+            LaunchedEffect(hasTerminalSessions) { if (hasTerminalSessions) requestNotificationPermission() }
             val hasTabs = editorState.tabs.isNotEmpty()
             val filesVisible = !hasTabs || showFiles
 
@@ -55,8 +77,9 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 EditorScreen(
                                     state = editorState,
+                                    terminal = terminal,
                                     darkTheme = isDarkTheme(appearance.mode),
-                                    visible = !filesVisible && !showThemeSettings,
+                                    visible = !filesVisible && !showThemeSettings && !showTerminal,
                                     autocompleteEnabled = autocompleteEnabled,
                                     onChanged = editorViewModel::onChanged,
                                     onSave = editorViewModel::onSave,
@@ -100,6 +123,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onErrorShown = filesViewModel::onErrorShown,
                                     onOpenThemeSettings = { showThemeSettings = true },
+                                    onOpenTerminal = { showTerminal = true },
                                     onDraftToggle = filesViewModel::onDraftToggle,
                                     onDraftOpen = { id ->
                                         (drafts.find(id) as? DraftFile)?.let { node ->
@@ -117,6 +141,9 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                    }
+                    if (showTerminal) {
+                        TerminalScreen(manager = terminal, onClose = { showTerminal = false })
                     }
                     if (showThemeSettings) {
                         ThemeSettingsScreen(

@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AirCode"
 
-include(":app", ":theme", ":crash", ":filesystem", ":editor")
+include(":app", ":theme", ":crash", ":filesystem", ":editor", ":terminal")

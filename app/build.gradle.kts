@@ -12,8 +12,8 @@ android {
         applicationId = "com.mauyaapps.aircode"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.2test4"
+        versionCode = 7
+        versionName = "0.3test2"
     }
 
     buildTypes {
@@ -34,6 +34,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -41,6 +47,7 @@ dependencies {
     implementation(project(":crash"))
     implementation(project(":filesystem"))
     implementation(project(":editor"))
+    implementation(project(":terminal"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)

@@ -19,6 +19,10 @@ jobs:
         with:
           gradle-version: 8.9
 
+      - name: Бинарники proot
+        continue-on-error: true
+        run: bash scripts/fetch-proot.sh
+
       - name: Сборка debug APK
         run: gradle assembleDebug
 

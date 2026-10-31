@@ -6,10 +6,27 @@ enum class ThemeStyle { BASE, MATERIAL_YOU, CUSTOM, GLASS }
 
 const val DEFAULT_ACCENT: Int = 0xFF3F7CFF.toInt()
 
+const val MIN_CONTRAST: Float = -1f
+const val MAX_CONTRAST: Float = 1f
+
+data class ColorSlot(
+    val color: Int,
+    val contrast: Float = 0f,
+)
+
+data class YouColors(
+    val primary: ColorSlot = ColorSlot(DEFAULT_ACCENT),
+    val secondary: ColorSlot? = null,
+    val tertiary: ColorSlot? = null,
+    val neutral: ColorSlot? = null,
+)
+
 data class Appearance(
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val style: ThemeStyle = ThemeStyle.BASE,
     val accent: Int = DEFAULT_ACCENT,
+    val youCustom: Boolean = false,
+    val youColors: YouColors = YouColors(),
 )
 
 val ACCENT_PRESETS: List<Int> = listOf(

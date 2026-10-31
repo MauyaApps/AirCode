@@ -42,8 +42,6 @@ import com.mauyaapps.aircode.filesystem.DraftFolder
 import com.mauyaapps.aircode.filesystem.TreeEntry
 import java.io.File
 
-private const val MENU_GLYPH = "⋮"
-
 private sealed interface FilesDialog {
     data class NewItem(val parent: File?, val isFolder: Boolean) : FilesDialog
     data class Rename(val file: File) : FilesDialog
@@ -64,6 +62,7 @@ fun FilesScreen(
     onDelete: (File) -> Unit,
     onErrorShown: () -> Unit,
     onOpenThemeSettings: () -> Unit,
+    onOpenTerminal: () -> Unit,
     onDraftToggle: (Long) -> Unit,
     onDraftOpen: (Long) -> Unit,
     onDraftCreate: (parentId: Long?, name: String, isFolder: Boolean) -> Unit,
@@ -108,6 +107,10 @@ fun FilesScreen(
                             MenuItem(R.string.new_folder_draft) {
                                 topMenuOpen = false
                                 dialog = FilesDialog.NewDraft(parentId = null, isFolder = true)
+                            }
+                            MenuItem(R.string.menu_terminal_show) {
+                                topMenuOpen = false
+                                onOpenTerminal()
                             }
                             MenuItem(R.string.theme_section) {
                                 topMenuOpen = false

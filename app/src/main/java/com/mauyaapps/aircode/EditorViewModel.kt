@@ -98,12 +98,13 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun onSave(tabId: Long, text: String, thenClose: Boolean) {
+    fun onSave(tabId: Long, text: String, thenClose: Boolean, onSaved: () -> Unit = {}) {
         val tab = _state.value.tabs.firstOrNull { it.id == tabId } ?: return
         if (tab.draftId != null) {
             drafts.setText(tab.draftId, text)
             markSaved(tabId)
             if (thenClose) onCloseTab(tabId)
+            onSaved()
             return
         }
         val file = tab.file ?: return
@@ -113,6 +114,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 .onSuccess {
                     markSaved(tabId)
                     if (thenClose) onCloseTab(tabId)
+                    onSaved()
                 }
                 .onFailure { e -> _state.update { it.copy(error = reasonOf(e)) } }
         }

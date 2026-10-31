@@ -133,8 +133,20 @@ function postCursor(state) {
   post({ type: "cursor", line: line.number, column: head - line.from + 1 });
 }
 
+const lightTheme = EditorView.theme(
+  {
+    "&": { color: "#1f2328", backgroundColor: LIGHT_BACKGROUND },
+    ".cm-content": { caretColor: "#1f2328" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#1f2328" },
+    ".cm-gutters": { backgroundColor: "#f6f8fa", color: "#6e7781", border: "none" },
+    ".cm-activeLine": { backgroundColor: "#0969da14" },
+    ".cm-activeLineGutter": { backgroundColor: "#0969da1f" },
+  },
+  { dark: false },
+);
+
 function themeExtension() {
-  return dark ? oneDark : [];
+  return dark ? oneDark : lightTheme;
 }
 
 function autocompleteExtension() {
@@ -215,6 +227,7 @@ function applyPageBackground() {
   const color = dark ? DARK_BACKGROUND : LIGHT_BACKGROUND;
   document.documentElement.style.background = color;
   document.body.style.background = color;
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
 }
 
 window.AirCode = {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -22,14 +23,18 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -39,17 +44,24 @@ import com.mauyaapps.aircode.editor.EditorController
 import com.mauyaapps.aircode.editor.EditorView
 import com.mauyaapps.aircode.editor.SymbolBar
 import com.mauyaapps.aircode.editor.previewKindForFile
+import com.mauyaapps.aircode.terminal.R as TerminalR
+import com.mauyaapps.aircode.terminal.RunStart
+import com.mauyaapps.aircode.terminal.TerminalManager
+import com.mauyaapps.aircode.terminal.TerminalPanel
+import com.mauyaapps.aircode.theme.LocalGlassStyle
 import com.mauyaapps.aircode.theme.ThemeMode
+import com.mauyaapps.aircode.theme.glassFrame
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(
     state: EditorUiState,
+    terminal: TerminalManager,
     darkTheme: Boolean,
     visible: Boolean,
     autocompleteEnabled: Boolean,
     onChanged: () -> Unit,
-    onSave: (tabId: Long, text: String, thenClose: Boolean) -> Unit,
+    onSave: (tabId: Long, text: String, thenClose: Boolean, onSaved: () -> Unit) -> Unit,
     onSelectTab: (Long) -> Unit,
     onCloseTab: (Long) -> Unit,
     onShowFiles: () -> Unit,
@@ -59,6 +71,7 @@ fun EditorScreen(
     onErrorShown: () -> Unit,
 ) {
     val controller = remember { EditorController() }
+    val glass = LocalGlassStyle.current
     var askSaveFor by remember { mutableStateOf<EditorTab?>(null) }
     var askAutocomplete by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -67,7 +80,19 @@ fun EditorScreen(
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var caseSensitive by remember { mutableStateOf(false) }
+    var terminalOpen by remember { mutableStateOf(false) }
+    var terminalExpanded by remember { mutableStateOf(false) }
+    var terminalInputFocused by remember { mutableStateOf(false) }
+    var packagesOpen by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<Int?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val findTitle = stringResource(R.string.find_in_file)
+    val previewTitle = stringResource(R.string.cmd_preview)
+    val terminalToggleTitle = stringResource(
+        if (terminalOpen) R.string.menu_terminal_hide else R.string.menu_terminal_show,
+    )
+    val runTitle = stringResource(R.string.menu_run)
+    val packagesTitle = stringResource(R.string.menu_packages)
 
     val errorMessage = state.error?.let { stringResource(workspaceErrorRes(it)) }
     LaunchedEffect(state.error) {
@@ -84,9 +109,10 @@ fun EditorScreen(
     val documents = remember(state.tabs) { state.tabs.map { it.document } }
     val fileName = active?.name.orEmpty()
     val previewKind = active?.let { previewKindForFile(it.name) }
+    val runnable = remember(active?.name, menuOpen, paletteOpen) { active?.let { terminal.canRun(it.name) } == true }
 
     fun save(tab: EditorTab, thenClose: Boolean) {
-        controller.requestText(tab.id) { text -> onSave(tab.id, text, thenClose) }
+        controller.requestText(tab.id) { text -> onSave(tab.id, text, thenClose) {} }
     }
 
     fun requestClose(tabId: Long) {
@@ -117,10 +143,44 @@ fun EditorScreen(
         controller.requestText(tab.id) { text -> preview = PreviewState(kind, tab.name, text) }
     }
 
+    val noticeText = notice?.let { stringResource(it) }
+    LaunchedEffect(noticeText) {
+        if (noticeText != null) {
+            snackbarHostState.showSnackbar(noticeText)
+            notice = null
+        }
+    }
+
+    fun startRun(file: java.io.File) {
+        terminalOpen = true
+        notice = when (terminal.run(file)) {
+            RunStart.STARTED -> null
+            RunStart.UNSUPPORTED -> TerminalR.string.run_unsupported
+            RunStart.NEEDS_ENVIRONMENT -> TerminalR.string.run_needs_environment
+            RunStart.OUTSIDE_WORKSPACE -> TerminalR.string.run_outside_workspace
+        }
+    }
+
+    fun runActive() {
+        val tab = active ?: return
+        val file = tab.file
+        if (file == null) {
+            notice = TerminalR.string.run_save_first
+            return
+        }
+        keyboard?.hide()
+        if (tab.isDirty) {
+            controller.requestText(tab.id) { text -> onSave(tab.id, text, false) { startRun(file) } }
+        } else {
+            startRun(file)
+        }
+    }
+
     LaunchedEffect(state.activeId) { if (searchOpen) closeSearch() }
 
     BackHandler(enabled = visible && active != null) { active?.let { requestClose(it.id) } }
     BackHandler(enabled = visible && searchOpen) { closeSearch() }
+    BackHandler(enabled = visible && terminalOpen) { terminalOpen = false }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -129,6 +189,11 @@ fun EditorScreen(
                 .graphicsLayer(alpha = if (preview != null) 0f else 1f),
             topBar = {
                 TopAppBar(
+                    colors = if (glass.enabled) {
+                        TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    } else {
+                        TopAppBarDefaults.topAppBarColors()
+                    },
                     title = {
                         Text(
                             text = if (active?.isDirty == true) "$fileName •" else fileName,
@@ -150,7 +215,7 @@ fun EditorScreen(
                             TextButton(onClick = { menuOpen = true }) { Text(MORE_GLYPH) }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.find_in_file)) },
+                                    text = { Text(findTitle) },
                                     onClick = {
                                         menuOpen = false
                                         openSearch()
@@ -165,13 +230,36 @@ fun EditorScreen(
                                 )
                                 if (previewKind != null) {
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.cmd_preview)) },
+                                        text = { Text(previewTitle) },
                                         onClick = {
                                             menuOpen = false
                                             openPreview()
                                         },
                                     )
                                 }
+                                if (runnable) {
+                                    DropdownMenuItem(
+                                        text = { Text(runTitle) },
+                                        onClick = {
+                                            menuOpen = false
+                                            runActive()
+                                        },
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(terminalToggleTitle) },
+                                    onClick = {
+                                        menuOpen = false
+                                        terminalOpen = !terminalOpen
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(packagesTitle) },
+                                    onClick = {
+                                        menuOpen = false
+                                        packagesOpen = true
+                                    },
+                                )
                             }
                         }
                     },
@@ -220,9 +308,31 @@ fun EditorScreen(
                     onChanged = onChanged,
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .then(
+                            if (glass.enabled) {
+                                Modifier
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .glassFrame(RoundedCornerShape(20.dp), glass.dark)
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
-                if (!searchOpen) ImeSymbolBar(controller)
+                if (terminalOpen) {
+                    TerminalPanel(
+                        manager = terminal,
+                        expanded = terminalExpanded,
+                        onToggleExpanded = { terminalExpanded = !terminalExpanded },
+                        onHide = { terminalOpen = false },
+                        onInputFocusChange = { terminalInputFocused = it },
+                        active = visible,
+                        modifier = Modifier
+                            .weight(if (terminalExpanded) 2f else 1f)
+                            .fillMaxWidth(),
+                    )
+                }
+                if (!searchOpen && !(terminalOpen && terminalInputFocused)) ImeSymbolBar(controller)
                 CursorStatus(controller)
             }
         }
@@ -238,10 +348,8 @@ fun EditorScreen(
 
     if (paletteOpen) {
         val saveTitle = stringResource(R.string.cmd_save)
-        val findTitle = stringResource(R.string.find_in_file)
         val closeTabTitle = stringResource(R.string.cmd_close_tab)
         val showFilesTitle = stringResource(R.string.cmd_show_files)
-        val previewTitle = stringResource(R.string.cmd_preview)
         val themeSettingsTitle = stringResource(R.string.cmd_theme_settings)
         val themeSystemTitle = stringResource(R.string.cmd_theme_system)
         val themeLightTitle = stringResource(R.string.cmd_theme_light)
@@ -255,8 +363,11 @@ fun EditorScreen(
                 if (active.isDirty) add(PaletteCommand(saveTitle) { save(active, thenClose = false) })
                 add(PaletteCommand(findTitle) { openSearch() })
                 if (previewKind != null) add(PaletteCommand(previewTitle) { openPreview() })
+                if (runnable) add(PaletteCommand(runTitle) { runActive() })
                 add(PaletteCommand(closeTabTitle) { requestClose(active.id) })
             }
+            add(PaletteCommand(terminalToggleTitle) { terminalOpen = !terminalOpen })
+            add(PaletteCommand(packagesTitle) { packagesOpen = true })
             add(PaletteCommand(showFilesTitle) { showFiles() })
             add(PaletteCommand(themeSettingsTitle) { onOpenThemeSettings() })
             add(PaletteCommand(themeSystemTitle) { onThemeSelected(ThemeMode.SYSTEM) })
@@ -273,6 +384,17 @@ fun EditorScreen(
             }
         }
         CommandPalette(commands = commands, onDismiss = { paletteOpen = false })
+    }
+
+    if (packagesOpen) {
+        PackagesDialog(
+            onDismiss = { packagesOpen = false },
+            onInstall = { names ->
+                packagesOpen = false
+                terminalOpen = true
+                if (!terminal.installPackages(names)) notice = TerminalR.string.run_needs_environment
+            },
+        )
     }
 
     if (askAutocomplete) {
@@ -339,5 +461,38 @@ private fun CursorStatus(controller: EditorController) {
         ),
         style = MaterialTheme.typography.labelMedium,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun PackagesDialog(onDismiss: () -> Unit, onInstall: (List<String>) -> Unit) {
+    var names by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(TerminalR.string.packages_title)) },
+        text = {
+            Column {
+                Text(stringResource(TerminalR.string.packages_text))
+                TextField(
+                    value = names,
+                    onValueChange = { names = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(TerminalR.string.packages_hint)) },
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onInstall(names.split(' ', '\n', '\t').filter { it.isNotBlank() }) },
+                enabled = names.isNotBlank(),
+            ) { Text(stringResource(TerminalR.string.packages_install)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(TerminalR.string.packages_cancel)) }
+        },
     )
 }

@@ -3,6 +3,7 @@ package com.mauyaapps.aircode
 import android.app.Application
 import com.mauyaapps.aircode.crash.CrashHandler
 import com.mauyaapps.aircode.filesystem.WorkspaceRepository
+import com.mauyaapps.aircode.terminal.TerminalManager
 import java.io.File
 
 class AirCodeApp : Application() {
@@ -12,6 +13,8 @@ class AirCodeApp : Application() {
     }
 
     val drafts = DraftStore()
+
+    val terminal: TerminalManager by lazy { TerminalManager(this, workspace.root) }
 
     override fun onCreate() {
         super.onCreate()

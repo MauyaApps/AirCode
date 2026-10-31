@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -41,13 +42,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mauyaapps.aircode.theme.ACCENT_PRESETS
 import com.mauyaapps.aircode.theme.Appearance
+import com.mauyaapps.aircode.theme.ColorSlot
+import com.mauyaapps.aircode.theme.MAX_CONTRAST
+import com.mauyaapps.aircode.theme.MIN_CONTRAST
 import com.mauyaapps.aircode.theme.ThemeMode
 import com.mauyaapps.aircode.theme.ThemeStyle
 import com.mauyaapps.aircode.theme.argbToHsl
 import com.mauyaapps.aircode.theme.formatHexColor
 import com.mauyaapps.aircode.theme.hslToArgb
 import com.mauyaapps.aircode.theme.parseHexColor
+import com.mauyaapps.aircode.theme.rotateHue
 import com.mauyaapps.aircode.theme.supportsModernStyles
+import com.mauyaapps.aircode.theme.usesWallpaperColors
 
 private data class StyleOption(
     val style: ThemeStyle,
@@ -58,7 +64,7 @@ private data class StyleOption(
 
 private val STYLE_OPTIONS = listOf(
     StyleOption(ThemeStyle.BASE, R.string.style_base, R.string.style_base_desc, needsModern = false),
-    StyleOption(ThemeStyle.MATERIAL_YOU, R.string.style_material_you, R.string.style_material_you_desc, needsModern = true),
+    StyleOption(ThemeStyle.MATERIAL_YOU, R.string.style_material_you, R.string.style_material_you_desc, needsModern = false),
     StyleOption(ThemeStyle.CUSTOM, R.string.style_custom, R.string.style_custom_desc, needsModern = false),
     StyleOption(ThemeStyle.GLASS, R.string.style_glass, R.string.style_glass_desc, needsModern = true),
 )
@@ -114,6 +120,56 @@ fun ThemeSettingsScreen(
                     enabled = !option.needsModern || modernSupported,
                     onClick = { onChange(appearance.copy(style = option.style)) },
                 )
+            }
+
+            if (appearance.style == ThemeStyle.MATERIAL_YOU) {
+                SectionTitle(R.string.you_source_title)
+                val wallpaper = usesWallpaperColors(appearance)
+                OptionRow(
+                    label = stringResource(R.string.you_source_wallpaper),
+                    description = stringResource(R.string.you_source_wallpaper_desc),
+                    selected = wallpaper,
+                    enabled = modernSupported,
+                    onClick = { onChange(appearance.copy(youCustom = false)) },
+                )
+                OptionRow(
+                    label = stringResource(R.string.you_source_custom),
+                    description = stringResource(R.string.you_source_custom_desc),
+                    selected = !wallpaper,
+                    enabled = true,
+                    onClick = { onChange(appearance.copy(youCustom = true)) },
+                )
+                if (!wallpaper) {
+                    val colors = appearance.youColors
+                    SlotEditor(
+                        title = R.string.slot_primary,
+                        slot = colors.primary,
+                        defaultColor = colors.primary.color,
+                        optional = false,
+                        onChange = { slot -> onChange(appearance.copy(youColors = colors.copy(primary = slot ?: colors.primary))) },
+                    )
+                    SlotEditor(
+                        title = R.string.slot_secondary,
+                        slot = colors.secondary,
+                        defaultColor = rotateHue(colors.primary.color, SECONDARY_HUE_SHIFT),
+                        optional = true,
+                        onChange = { slot -> onChange(appearance.copy(youColors = colors.copy(secondary = slot))) },
+                    )
+                    SlotEditor(
+                        title = R.string.slot_tertiary,
+                        slot = colors.tertiary,
+                        defaultColor = rotateHue(colors.primary.color, TERTIARY_HUE_SHIFT),
+                        optional = true,
+                        onChange = { slot -> onChange(appearance.copy(youColors = colors.copy(tertiary = slot))) },
+                    )
+                    SlotEditor(
+                        title = R.string.slot_neutral,
+                        slot = colors.neutral,
+                        defaultColor = colors.primary.color,
+                        optional = true,
+                        onChange = { slot -> onChange(appearance.copy(youColors = colors.copy(neutral = slot))) },
+                    )
+                }
             }
 
             if (appearance.style == ThemeStyle.CUSTOM || appearance.style == ThemeStyle.GLASS) {
@@ -179,6 +235,66 @@ private fun OptionRow(
 }
 
 @Composable
+private fun SlotEditor(
+    title: Int,
+    slot: ColorSlot?,
+    defaultColor: Int,
+    optional: Boolean,
+    onChange: (ColorSlot?) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (optional) {
+                    Switch(
+                        checked = slot != null,
+                        onCheckedChange = { enabled -> onChange(if (enabled) ColorSlot(defaultColor) else null) },
+                    )
+                }
+            }
+            if (slot == null) {
+                Text(
+                    text = stringResource(R.string.slot_auto_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                AccentPicker(accent = slot.color, onAccentChange = { onChange(slot.copy(color = it)) })
+                ContrastSlider(contrast = slot.contrast, onChange = { onChange(slot.copy(contrast = it)) })
+            }
+        }
+    }
+}
+
+private fun contrastName(value: Float): Int = when {
+    value < -0.25f -> R.string.contrast_low
+    value < 0.25f -> R.string.contrast_standard
+    value < 0.75f -> R.string.contrast_medium
+    else -> R.string.contrast_high
+}
+
+@Composable
+private fun ContrastSlider(contrast: Float, onChange: (Float) -> Unit) {
+    var value by remember(contrast) { mutableFloatStateOf(contrast) }
+    Text(
+        text = stringResource(R.string.contrast_label, stringResource(contrastName(value))),
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Slider(
+        value = value,
+        onValueChange = { value = it },
+        onValueChangeFinished = { onChange(value) },
+        valueRange = MIN_CONTRAST..MAX_CONTRAST,
+    )
+}
+
+@Composable
 private fun AccentPicker(accent: Int, onAccentChange: (Int) -> Unit) {
     ACCENT_PRESETS.chunked(5).forEach { row ->
         Row(
@@ -237,3 +353,5 @@ private fun Swatch(color: Int, selected: Boolean, onClick: () -> Unit) {
 private const val BACK_GLYPH = "←"
 private const val SLIDER_SATURATION = 0.65f
 private const val SLIDER_LIGHTNESS = 0.50f
+private const val SECONDARY_HUE_SHIFT = 30f
+private const val TERTIARY_HUE_SHIFT = 60f
