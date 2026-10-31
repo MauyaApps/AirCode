@@ -477,5 +477,3 @@ private fun NameDialog(
         },
     )
 }
-
-private const val MENU_GLYPH = "⋮"

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.mauyaapps.aircode.editor.EditorRenderMode
 import com.mauyaapps.aircode.theme.Appearance
 import com.mauyaapps.aircode.theme.ColorSlot
 import com.mauyaapps.aircode.theme.DEFAULT_ACCENT
@@ -78,6 +79,16 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAutocompleteEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[autocompleteKey] = enabled }
+    }
+
+    private val renderModeKey = stringPreferencesKey("editor_render_mode")
+
+    val renderMode: Flow<EditorRenderMode> = context.settingsDataStore.data.map { prefs ->
+        EditorRenderMode.entries.firstOrNull { it.name == prefs[renderModeKey] } ?: EditorRenderMode.SOFTWARE
+    }
+
+    suspend fun setRenderMode(mode: EditorRenderMode) {
+        context.settingsDataStore.edit { it[renderModeKey] = mode.name }
     }
 
     suspend fun setAppearance(appearance: Appearance) {

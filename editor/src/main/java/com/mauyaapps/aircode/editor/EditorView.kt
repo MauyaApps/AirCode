@@ -21,12 +21,14 @@ fun EditorView(
     documents: List<EditorDocument>,
     activeId: Long?,
     darkTheme: Boolean,
+    renderMode: EditorRenderMode,
     autocompleteEnabled: Boolean,
     onChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SideEffect { controller.onChanged = onChanged }
     LaunchedEffect(darkTheme) { controller.setDarkTheme(darkTheme) }
+    LaunchedEffect(renderMode) { controller.setRenderMode(renderMode) }
     LaunchedEffect(autocompleteEnabled) { controller.setAutocomplete(autocompleteEnabled) }
     LaunchedEffect(documents.map { it.id }, activeId) { controller.sync(documents, activeId) }
 

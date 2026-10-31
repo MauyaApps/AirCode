@@ -95,6 +95,11 @@
     <string name="cmd_theme_light">Тема: светлая</string>
     <string name="cmd_theme_dark">Тема: тёмная</string>
     <string name="cmd_autocomplete_on">Включить автодополнение</string>
+    <string name="cmd_render_software">Редактор: программная отрисовка</string>
+    <string name="cmd_render_hardware">Редактор: аппаратная отрисовка</string>
+    <string name="cmd_editor_refresh">Редактор: перерисовать</string>
+    <string name="cmd_editor_diagnose">Редактор: диагностика</string>
+    <string name="diagnostics_title">Диагностика редактора</string>
     <string name="cmd_autocomplete_off">Выключить автодополнение</string>
     <string name="cmd_goto_tab">Перейти к вкладке: %1$s</string>
     <string name="preview_title">Просмотр: %1$s</string>

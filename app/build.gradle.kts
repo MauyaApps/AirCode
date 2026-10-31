@@ -12,8 +12,8 @@ android {
         applicationId = "com.mauyaapps.aircode"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.3test2"
+        versionCode = 8
+        versionName = "0.3test3"
     }
 
     buildTypes {

@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mauyaapps.aircode.filesystem.DraftFile
@@ -51,6 +50,7 @@ class MainActivity : ComponentActivity() {
             val appearance by mainViewModel.appearance.collectAsStateWithLifecycle()
             val filesState by filesViewModel.state.collectAsStateWithLifecycle()
             val autocompleteEnabled by mainViewModel.autocompleteEnabled.collectAsStateWithLifecycle()
+            val renderMode by mainViewModel.renderMode.collectAsStateWithLifecycle()
             val editorState by editorViewModel.state.collectAsStateWithLifecycle()
             val listState = rememberLazyListState()
             var showFiles by rememberSaveable { mutableStateOf(false) }
@@ -64,23 +64,16 @@ class MainActivity : ComponentActivity() {
 
             AirCodeTheme(appearance = appearance) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(alpha = if (showThemeSettings) 0f else 1f),
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         if (hasTabs) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer(alpha = if (filesVisible) 0f else 1f),
-                            ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
                                 EditorScreen(
                                     state = editorState,
                                     terminal = terminal,
                                     darkTheme = isDarkTheme(appearance.mode),
                                     visible = !filesVisible && !showThemeSettings && !showTerminal,
                                     autocompleteEnabled = autocompleteEnabled,
+                                    renderMode = renderMode,
                                     onChanged = editorViewModel::onChanged,
                                     onSave = editorViewModel::onSave,
                                     onSelectTab = editorViewModel::onSelectTab,
@@ -91,6 +84,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenThemeSettings = { showThemeSettings = true },
                                     onAutocompleteChange = mainViewModel::onAutocompleteChange,
+                                    onRenderModeChange = mainViewModel::onRenderModeChange,
                                     onErrorShown = editorViewModel::onErrorShown,
                                 )
                             }
@@ -143,14 +137,18 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     if (showTerminal) {
-                        TerminalScreen(manager = terminal, onClose = { showTerminal = false })
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            TerminalScreen(manager = terminal, onClose = { showTerminal = false })
+                        }
                     }
                     if (showThemeSettings) {
-                        ThemeSettingsScreen(
-                            appearance = appearance,
-                            onChange = mainViewModel::onAppearanceChange,
-                            onClose = { showThemeSettings = false },
-                        )
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            ThemeSettingsScreen(
+                                appearance = appearance,
+                                onChange = mainViewModel::onAppearanceChange,
+                                onClose = { showThemeSettings = false },
+                            )
+                        }
                     }
                 }
             }

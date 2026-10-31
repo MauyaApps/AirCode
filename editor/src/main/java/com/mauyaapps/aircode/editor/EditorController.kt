@@ -1,5 +1,7 @@
 package com.mauyaapps.aircode.editor
 
+import android.os.Build
+import android.view.View
 import android.webkit.WebView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +19,7 @@ class EditorController {
     internal var onChanged: () -> Unit = {}
 
     private var webView: WebView? = null
+    private var renderMode = EditorRenderMode.SOFTWARE
     private var isReady = false
     private var darkTheme = false
     private var autocompleteEnabled = false
@@ -76,8 +79,70 @@ class EditorController {
         if (isReady) evaluate("AirCode.setTheme($dark)")
     }
 
+    internal fun setRenderMode(mode: EditorRenderMode) {
+        renderMode = mode
+        applyRenderMode()
+    }
+
+    fun refresh() {
+        val view = webView ?: return
+        view.invalidate()
+        if (isReady) evaluate("AirCodeDiag.refresh()")
+    }
+
+    fun diagnose(onResult: (String) -> Unit) {
+        val view = webView
+        val native = buildString {
+            append("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}\n")
+            append("WebView: ${webViewVersion()}\n")
+            append("Режим отрисовки: $renderMode\n")
+            if (view == null) {
+                append("WebView не создан\n")
+            } else {
+                append("Размер: ${view.width}x${view.height}, слой: ${layerName(view.layerType)}, аппаратное ускорение: ${view.isHardwareAccelerated}\n")
+                append("Видимость: ${view.visibility}, показан: ${view.isShown}, alpha: ${view.alpha}\n")
+            }
+            append("Страница готова: $isReady, документов: ${documents.size}, показан: $shownId\n")
+        }
+        if (view == null || !isReady) {
+            onResult(native + "JS недоступен")
+            return
+        }
+        view.evaluateJavascript("AirCodeDiag.diagnose()") { raw ->
+            val text = try {
+                org.json.JSONTokener(raw).nextValue()?.toString().orEmpty()
+            } catch (e: org.json.JSONException) {
+                raw.orEmpty()
+            }
+            onResult(native + "JS: " + text)
+        }
+    }
+
+    private fun applyRenderMode() {
+        val view = webView ?: return
+        view.setLayerType(
+            if (renderMode == EditorRenderMode.SOFTWARE) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_NONE,
+            null,
+        )
+        view.invalidate()
+    }
+
+    private fun layerName(type: Int): String = when (type) {
+        View.LAYER_TYPE_SOFTWARE -> "software"
+        View.LAYER_TYPE_HARDWARE -> "hardware"
+        else -> "none"
+    }
+
+    private fun webViewVersion(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WebView.getCurrentWebViewPackage()?.let { "${it.packageName} ${it.versionName}" } ?: "неизвестно"
+        } else {
+            "неизвестно"
+        }
+
     internal fun attach(view: WebView) {
         webView = view
+        applyRenderMode()
         isReady = false
         loaded.clear()
         shownId = null
@@ -98,6 +163,7 @@ class EditorController {
                 evaluate("AirCode.setTheme($darkTheme)")
                 evaluate("AirCode.setAutocomplete($autocompleteEnabled)")
                 apply()
+                refresh()
             }
 
             EditorMessage.Changed -> onChanged()

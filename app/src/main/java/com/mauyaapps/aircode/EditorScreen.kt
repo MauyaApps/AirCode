@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -21,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -35,12 +38,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mauyaapps.aircode.editor.EditorController
+import com.mauyaapps.aircode.editor.EditorRenderMode
 import com.mauyaapps.aircode.editor.EditorView
 import com.mauyaapps.aircode.editor.SymbolBar
 import com.mauyaapps.aircode.editor.previewKindForFile
@@ -60,6 +63,7 @@ fun EditorScreen(
     darkTheme: Boolean,
     visible: Boolean,
     autocompleteEnabled: Boolean,
+    renderMode: EditorRenderMode,
     onChanged: () -> Unit,
     onSave: (tabId: Long, text: String, thenClose: Boolean, onSaved: () -> Unit) -> Unit,
     onSelectTab: (Long) -> Unit,
@@ -68,11 +72,14 @@ fun EditorScreen(
     onThemeSelected: (ThemeMode) -> Unit,
     onOpenThemeSettings: () -> Unit,
     onAutocompleteChange: (Boolean) -> Unit,
+    onRenderModeChange: (EditorRenderMode) -> Unit,
     onErrorShown: () -> Unit,
 ) {
     val controller = remember { EditorController() }
     val glass = LocalGlassStyle.current
     var askSaveFor by remember { mutableStateOf<EditorTab?>(null) }
+    var diagnosticsText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(visible) { if (visible) controller.refresh() }
     var askAutocomplete by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
@@ -184,9 +191,7 @@ fun EditorScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(alpha = if (preview != null) 0f else 1f),
+            modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
                     colors = if (glass.enabled) {
@@ -304,6 +309,7 @@ fun EditorScreen(
                     documents = documents,
                     activeId = state.activeId,
                     darkTheme = darkTheme,
+                    renderMode = renderMode,
                     autocompleteEnabled = autocompleteEnabled,
                     onChanged = onChanged,
                     modifier = Modifier
@@ -338,11 +344,13 @@ fun EditorScreen(
         }
 
         preview?.let { current ->
-            PreviewScreen(
-                preview = current,
-                darkTheme = darkTheme,
-                onClose = { preview = null },
-            )
+            Surface(modifier = Modifier.fillMaxSize()) {
+                PreviewScreen(
+                    preview = current,
+                    darkTheme = darkTheme,
+                    onClose = { preview = null },
+                )
+            }
         }
     }
 
@@ -357,6 +365,12 @@ fun EditorScreen(
         val autocompleteTitle = stringResource(
             if (autocompleteEnabled) R.string.cmd_autocomplete_off else R.string.cmd_autocomplete_on,
         )
+        val nextRender = if (renderMode == EditorRenderMode.SOFTWARE) EditorRenderMode.HARDWARE else EditorRenderMode.SOFTWARE
+        val renderTitle = stringResource(
+            if (nextRender == EditorRenderMode.SOFTWARE) R.string.cmd_render_software else R.string.cmd_render_hardware,
+        )
+        val refreshTitle = stringResource(R.string.cmd_editor_refresh)
+        val diagnoseTitle = stringResource(R.string.cmd_editor_diagnose)
         val gotoTabFormat = R.string.cmd_goto_tab
         val commands = buildList {
             if (active != null) {
@@ -378,12 +392,32 @@ fun EditorScreen(
                     if (autocompleteEnabled) onAutocompleteChange(false) else askAutocomplete = true
                 },
             )
+            add(PaletteCommand(renderTitle) { onRenderModeChange(nextRender) })
+            add(PaletteCommand(refreshTitle) { controller.refresh() })
+            add(PaletteCommand(diagnoseTitle) { controller.diagnose { diagnosticsText = it } })
             state.tabs.filter { it.id != state.activeId }.forEach { tab ->
                 val title = stringResource(gotoTabFormat, tab.name)
                 add(PaletteCommand(title) { onSelectTab(tab.id) })
             }
         }
         CommandPalette(commands = commands, onDismiss = { paletteOpen = false })
+    }
+
+    diagnosticsText?.let { text ->
+        AlertDialog(
+            onDismissRequest = { diagnosticsText = null },
+            title = { Text(stringResource(R.string.diagnostics_title)) },
+            text = {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { diagnosticsText = null }) { Text(stringResource(R.string.close)) }
+            },
+        )
     }
 
     if (packagesOpen) {
