@@ -171,6 +171,8 @@ internal fun NativeEditor(
     val palette = if (darkTheme) DarkPalette else LightPalette
     val value = activeId?.let { controller.nativeValue(it) }
     BoxWithConstraints(modifier = modifier.background(palette.background)) {
+        val viewportWidth = maxWidth
+        val viewportHeight = maxHeight
         if (activeId != null && value != null) {
             key(activeId) {
                 val scroll = rememberScrollState()
@@ -220,7 +222,7 @@ internal fun NativeEditor(
                 }
                 val tap = controller.tapOffset
                 val hits = if (tap != null) diagnostics.filter { tap >= it.start && tap <= it.end } else emptyList()
-                Row(modifier = Modifier.fillMaxSize().verticalScroll(scroll).heightIn(min = maxHeight)) {
+                Row(modifier = Modifier.fillMaxSize().verticalScroll(scroll).heightIn(min = viewportHeight)) {
                     Text(
                         text = numbers,
                         style = EditorTextStyle.copy(color = palette.gutter, textAlign = TextAlign.End),
@@ -240,7 +242,7 @@ internal fun NativeEditor(
                                 visualTransformation = transformation,
                                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
                                 onTextLayout = { layout = it },
-                                modifier = Modifier.widthIn(min = maxOf(maxWidth - 48.dp, 0.dp)).heightIn(min = maxOf(maxHeight - 16.dp, 0.dp)),
+                                modifier = Modifier.widthIn(min = maxOf(viewportWidth - 48.dp, 0.dp)).heightIn(min = maxOf(viewportHeight - 16.dp, 0.dp)),
                             )
                             if (hits.isNotEmpty() && tap != null) {
                                 val current = layout
