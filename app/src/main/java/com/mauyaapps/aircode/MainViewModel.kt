@@ -3,6 +3,7 @@ package com.mauyaapps.aircode
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.mauyaapps.aircode.editor.EditorEngine
 import com.mauyaapps.aircode.editor.EditorRenderMode
 import com.mauyaapps.aircode.theme.Appearance
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +36,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = EditorRenderMode.SOFTWARE,
     )
+
+    val editorEngine: StateFlow<EditorEngine> = settings.editorEngine.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = EditorEngine.NATIVE,
+    )
+
+    fun onEditorEngineChange(engine: EditorEngine) {
+        viewModelScope.launch { settings.setEditorEngine(engine) }
+    }
 
     fun onRenderModeChange(mode: EditorRenderMode) {
         viewModelScope.launch { settings.setRenderMode(mode) }

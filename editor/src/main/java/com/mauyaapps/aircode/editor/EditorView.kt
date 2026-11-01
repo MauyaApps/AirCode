@@ -21,25 +21,39 @@ fun EditorView(
     documents: List<EditorDocument>,
     activeId: Long?,
     darkTheme: Boolean,
+    engine: EditorEngine,
     renderMode: EditorRenderMode,
     autocompleteEnabled: Boolean,
     onChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SideEffect { controller.onChanged = onChanged }
+    SideEffect {
+        controller.onChanged = onChanged
+        controller.setEngine(engine)
+    }
     LaunchedEffect(darkTheme) { controller.setDarkTheme(darkTheme) }
     LaunchedEffect(renderMode) { controller.setRenderMode(renderMode) }
     LaunchedEffect(autocompleteEnabled) { controller.setAutocomplete(autocompleteEnabled) }
-    LaunchedEffect(documents.map { it.id }, activeId) { controller.sync(documents, activeId) }
+    LaunchedEffect(documents.map { it.id }, activeId, engine) { controller.sync(documents, activeId) }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { context -> createWebView(context, controller) },
-        onRelease = { view ->
-            controller.detach()
-            view.destroy()
-        },
-    )
+    if (engine == EditorEngine.NATIVE) {
+        NativeEditor(
+            controller = controller,
+            activeId = activeId,
+            language = documents.firstOrNull { it.id == activeId }?.language ?: "plain",
+            darkTheme = darkTheme,
+            modifier = modifier,
+        )
+    } else {
+        AndroidView(
+            modifier = modifier,
+            factory = { context -> createWebView(context, controller) },
+            onRelease = { view ->
+                controller.detach()
+                view.destroy()
+            },
+        )
+    }
 }
 
 @SuppressLint("SetJavaScriptEnabled")

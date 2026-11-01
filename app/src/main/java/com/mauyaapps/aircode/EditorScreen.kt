@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mauyaapps.aircode.editor.EditorController
+import com.mauyaapps.aircode.editor.EditorEngine
 import com.mauyaapps.aircode.editor.EditorRenderMode
 import com.mauyaapps.aircode.editor.EditorView
 import com.mauyaapps.aircode.editor.SymbolBar
@@ -63,6 +64,7 @@ fun EditorScreen(
     darkTheme: Boolean,
     visible: Boolean,
     autocompleteEnabled: Boolean,
+    engine: EditorEngine,
     renderMode: EditorRenderMode,
     onChanged: () -> Unit,
     onSave: (tabId: Long, text: String, thenClose: Boolean, onSaved: () -> Unit) -> Unit,
@@ -72,6 +74,7 @@ fun EditorScreen(
     onThemeSelected: (ThemeMode) -> Unit,
     onOpenThemeSettings: () -> Unit,
     onAutocompleteChange: (Boolean) -> Unit,
+    onEngineChange: (EditorEngine) -> Unit,
     onRenderModeChange: (EditorRenderMode) -> Unit,
     onErrorShown: () -> Unit,
 ) {
@@ -309,6 +312,7 @@ fun EditorScreen(
                     documents = documents,
                     activeId = state.activeId,
                     darkTheme = darkTheme,
+                    engine = engine,
                     renderMode = renderMode,
                     autocompleteEnabled = autocompleteEnabled,
                     onChanged = onChanged,
@@ -369,6 +373,10 @@ fun EditorScreen(
         val renderTitle = stringResource(
             if (nextRender == EditorRenderMode.SOFTWARE) R.string.cmd_render_software else R.string.cmd_render_hardware,
         )
+        val nextEngine = if (engine == EditorEngine.NATIVE) EditorEngine.CODEMIRROR else EditorEngine.NATIVE
+        val engineTitle = stringResource(
+            if (nextEngine == EditorEngine.NATIVE) R.string.cmd_engine_native else R.string.cmd_engine_codemirror,
+        )
         val refreshTitle = stringResource(R.string.cmd_editor_refresh)
         val diagnoseTitle = stringResource(R.string.cmd_editor_diagnose)
         val gotoTabFormat = R.string.cmd_goto_tab
@@ -390,6 +398,11 @@ fun EditorScreen(
             add(
                 PaletteCommand(autocompleteTitle) {
                     if (autocompleteEnabled) onAutocompleteChange(false) else askAutocomplete = true
+                },
+            )
+            add(
+                PaletteCommand(engineTitle) {
+                    if (state.tabs.any { it.isDirty }) notice = R.string.engine_save_first else onEngineChange(nextEngine)
                 },
             )
             add(PaletteCommand(renderTitle) { onRenderModeChange(nextRender) })

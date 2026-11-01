@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
             val filesState by filesViewModel.state.collectAsStateWithLifecycle()
             val autocompleteEnabled by mainViewModel.autocompleteEnabled.collectAsStateWithLifecycle()
             val renderMode by mainViewModel.renderMode.collectAsStateWithLifecycle()
+            val editorEngine by mainViewModel.editorEngine.collectAsStateWithLifecycle()
             val editorState by editorViewModel.state.collectAsStateWithLifecycle()
             val listState = rememberLazyListState()
             var showFiles by rememberSaveable { mutableStateOf(false) }
@@ -73,6 +74,7 @@ class MainActivity : ComponentActivity() {
                                     darkTheme = isDarkTheme(appearance.mode),
                                     visible = !filesVisible && !showThemeSettings && !showTerminal,
                                     autocompleteEnabled = autocompleteEnabled,
+                                    engine = editorEngine,
                                     renderMode = renderMode,
                                     onChanged = editorViewModel::onChanged,
                                     onSave = editorViewModel::onSave,
@@ -84,6 +86,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenThemeSettings = { showThemeSettings = true },
                                     onAutocompleteChange = mainViewModel::onAutocompleteChange,
+                                    onEngineChange = mainViewModel::onEditorEngineChange,
                                     onRenderModeChange = mainViewModel::onRenderModeChange,
                                     onErrorShown = editorViewModel::onErrorShown,
                                 )
