@@ -17,6 +17,7 @@ class TerminalPaths(filesDir: File, val nativeLibDir: File) {
     val ptyInner = File(rootfs, "usr/local/bin/aircode-inner")
     val sizeFile = File(rootfs, "tmp/aircode-size")
     val scriptBinary = File(rootfs, "usr/bin/script")
+    val packagesLog = File(base, "packages.log")
 }
 
 data class LaunchSpec(

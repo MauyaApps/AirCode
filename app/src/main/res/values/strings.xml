@@ -100,6 +100,15 @@
     <string name="engine_save_first">Сначала сохраните все файлы, затем переключайте редактор</string>
     <string name="cmd_render_software">Редактор: программная отрисовка</string>
     <string name="cmd_render_hardware">Редактор: аппаратная отрисовка</string>
+    <string name="cmd_language">Редактор: язык подсветки</string>
+    <string name="language_title">Язык подсветки</string>
+    <string name="language_detect">Определять автоматически</string>
+    <string name="language_auto">%1$s (авто)</string>
+    <string name="cmd_problems">Редактор: проблемы в коде</string>
+    <string name="problems_title">Проблемы в коде</string>
+    <string name="problems_none">Проблем не найдено</string>
+    <string name="problems_count">⚠ %1$d</string>
+    <string name="problem_line">Строка %1$d: %2$s</string>
     <string name="cmd_editor_refresh">Редактор: перерисовать</string>
     <string name="cmd_editor_diagnose">Редактор: диагностика</string>
     <string name="diagnostics_title">Диагностика редактора</string>

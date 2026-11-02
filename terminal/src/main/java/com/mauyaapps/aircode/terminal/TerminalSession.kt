@@ -51,6 +51,10 @@ class TerminalSession(
         scope.launch(Dispatchers.IO) { readLoop(started) }
     }
 
+    fun notice(text: String) {
+        append(text.replace("\n", "\r\n"))
+    }
+
     fun send(text: String) {
         if (_exitCode.value != null || text.isEmpty()) return
         if (localEcho) append(text)

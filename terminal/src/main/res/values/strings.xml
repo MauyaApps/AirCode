@@ -49,7 +49,8 @@
     <string name="install_failed_listing">Не удалось прочитать список выпусков Alpine</string>
     <string name="install_failed_checksum">Контрольная сумма архива не совпала</string>
     <string name="install_failed_extract">Не удалось распаковать архив</string>
-    <string name="install_failed_packages">Не удалось поставить базовые пакеты (нужен интернет)</string>
+    <string name="install_failed_packages">Не удалось поставить базовые пакеты</string>
+    <string name="terminal_no_script_hint">Базовые пакеты пока не установились, терминал работает в упрощённом режиме. Когда появится сеть, выполните: apk add util-linux-misc\n%1$s\n</string>
 
     <string name="run_needs_environment">Для запуска нужно окружение Linux. Установите его в терминале.</string>
     <string name="run_unsupported">Для этого типа файлов запуск пока не поддерживается.</string>

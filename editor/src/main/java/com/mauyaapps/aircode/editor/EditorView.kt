@@ -40,7 +40,7 @@ fun EditorView(
         NativeEditor(
             controller = controller,
             activeId = activeId,
-            language = documents.firstOrNull { it.id == activeId }?.language ?: "plain",
+            language = controller.languageOf(activeId),
             darkTheme = darkTheme,
             modifier = modifier,
         )

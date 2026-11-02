@@ -121,7 +121,7 @@ private class HighlightTransformation(
         val styled = buildAnnotatedString {
             append(raw)
             if (raw.length <= HIGHLIGHT_LIMIT) {
-                SyntaxHighlighter.tokenize(raw, language).forEach { token ->
+                safeTokens(raw, language).forEach { token ->
                     addStyle(SpanStyle(color = palette.colorOf(token.kind)), token.start, token.end)
                 }
             }
@@ -140,6 +140,18 @@ private class HighlightTransformation(
         }
         return TransformedText(styled, OffsetMapping.Identity)
     }
+}
+
+private fun safeTokens(text: String, language: String): List<Token> = try {
+    SyntaxHighlighter.tokenize(text, language)
+} catch (e: RuntimeException) {
+    emptyList()
+}
+
+private fun safeAnalyze(text: String, language: String): List<Diagnostic> = try {
+    CodeAnalyzer.analyze(text, language)
+} catch (e: RuntimeException) {
+    emptyList()
 }
 
 private class Analysis(val text: String, val items: List<Diagnostic>)
@@ -180,14 +192,23 @@ internal fun NativeEditor(
                 var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
                 var analysis by remember { mutableStateOf<Analysis?>(null) }
                 val text = value.text
+                LaunchedEffect(text) {
+                    if (controller.needsGuess(activeId)) {
+                        controller.setGuessed(activeId, LanguageGuess.guess(text))
+                    }
+                }
                 LaunchedEffect(text, language) {
                     if (analysis != null) delay(ANALYSIS_DELAY_MS)
                     val items = if (text.length <= ANALYSIS_LIMIT) {
-                        withContext(Dispatchers.Default) { CodeAnalyzer.analyze(text, language) }
+                        withContext(Dispatchers.Default) { safeAnalyze(text, language) }
                     } else {
                         emptyList()
                     }
                     analysis = Analysis(text, items)
+                    controller.reportProblems(items)
+                }
+                LaunchedEffect(text) {
+                    if (controller.problems.isNotEmpty()) controller.reportProblems(emptyList())
                 }
                 val diagnostics = analysis?.takeIf { it.text == text }?.items.orEmpty()
                 val match = controller.nativeMatch

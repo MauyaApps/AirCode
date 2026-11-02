@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -38,14 +39,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mauyaapps.aircode.editor.Diagnostic
 import com.mauyaapps.aircode.editor.EditorController
 import com.mauyaapps.aircode.editor.EditorEngine
 import com.mauyaapps.aircode.editor.EditorRenderMode
+import com.mauyaapps.aircode.editor.EDITOR_LANGUAGES
 import com.mauyaapps.aircode.editor.EditorView
+import com.mauyaapps.aircode.editor.languageTitle
 import com.mauyaapps.aircode.editor.SymbolBar
 import com.mauyaapps.aircode.editor.previewKindForFile
 import com.mauyaapps.aircode.terminal.R as TerminalR
@@ -82,6 +87,8 @@ fun EditorScreen(
     val glass = LocalGlassStyle.current
     var askSaveFor by remember { mutableStateOf<EditorTab?>(null) }
     var diagnosticsText by remember { mutableStateOf<String?>(null) }
+    var problemsOpen by remember { mutableStateOf(false) }
+    var languageOpen by remember { mutableStateOf(false) }
     LaunchedEffect(visible) { if (visible) controller.refresh() }
     var askAutocomplete by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -343,7 +350,12 @@ fun EditorScreen(
                     )
                 }
                 if (!searchOpen && !(terminalOpen && terminalInputFocused)) ImeSymbolBar(controller)
-                CursorStatus(controller)
+                CursorStatus(
+                    controller = controller,
+                    activeId = state.activeId,
+                    onProblems = { problemsOpen = true },
+                    onLanguage = { languageOpen = true },
+                )
             }
         }
 
@@ -377,6 +389,8 @@ fun EditorScreen(
         val engineTitle = stringResource(
             if (nextEngine == EditorEngine.NATIVE) R.string.cmd_engine_native else R.string.cmd_engine_codemirror,
         )
+        val problemsTitle = stringResource(R.string.cmd_problems)
+        val languageCommandTitle = stringResource(R.string.cmd_language)
         val refreshTitle = stringResource(R.string.cmd_editor_refresh)
         val diagnoseTitle = stringResource(R.string.cmd_editor_diagnose)
         val gotoTabFormat = R.string.cmd_goto_tab
@@ -406,6 +420,8 @@ fun EditorScreen(
                 },
             )
             add(PaletteCommand(renderTitle) { onRenderModeChange(nextRender) })
+            add(PaletteCommand(problemsTitle) { problemsOpen = true })
+            add(PaletteCommand(languageCommandTitle) { languageOpen = true })
             add(PaletteCommand(refreshTitle) { controller.refresh() })
             add(PaletteCommand(diagnoseTitle) { controller.diagnose { diagnosticsText = it } })
             state.tabs.filter { it.id != state.activeId }.forEach { tab ->
@@ -429,6 +445,43 @@ fun EditorScreen(
             },
             confirmButton = {
                 TextButton(onClick = { diagnosticsText = null }) { Text(stringResource(R.string.close)) }
+            },
+        )
+    }
+
+    if (languageOpen) {
+        AlertDialog(
+            onDismissRequest = { languageOpen = false },
+            title = { Text(stringResource(R.string.language_title)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    TextButton(onClick = {
+                        controller.setLanguage(null)
+                        languageOpen = false
+                    }) { Text(stringResource(R.string.language_detect)) }
+                    EDITOR_LANGUAGES.forEach { code ->
+                        TextButton(onClick = {
+                            controller.setLanguage(code)
+                            languageOpen = false
+                        }) { Text(languageTitle(code)) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { languageOpen = false }) { Text(stringResource(R.string.close)) } },
+        )
+    }
+
+    if (problemsOpen) {
+        ProblemsDialog(
+            problems = controller.problems,
+            onDismiss = { problemsOpen = false },
+            onShow = {
+                controller.showProblem(it)
+                problemsOpen = false
+            },
+            onFix = {
+                controller.applyFixToActive(it)
+                problemsOpen = false
             },
         )
     }
@@ -499,15 +552,78 @@ private fun ImeSymbolBar(controller: EditorController) {
 }
 
 @Composable
-private fun CursorStatus(controller: EditorController) {
-    Text(
-        text = stringResource(
-            R.string.cursor_position,
-            controller.cursor.line,
-            controller.cursor.column,
-        ),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+private fun CursorStatus(
+    controller: EditorController,
+    activeId: Long?,
+    onProblems: () -> Unit,
+    onLanguage: () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(
+                R.string.cursor_position,
+                controller.cursor.line,
+                controller.cursor.column,
+            ),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+        val language = controller.languageOf(activeId)
+        val automatic = controller.isLanguageAutomatic(activeId)
+        TextButton(onClick = onLanguage) {
+            Text(
+                text = if (automatic && language != "plain") {
+                    stringResource(R.string.language_auto, languageTitle(language))
+                } else {
+                    languageTitle(language)
+                },
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+        val count = controller.problems.size
+        if (count > 0) {
+            TextButton(onClick = onProblems) {
+                Text(
+                    text = stringResource(R.string.problems_count, count),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProblemsDialog(
+    problems: List<Diagnostic>,
+    onDismiss: () -> Unit,
+    onShow: (Diagnostic) -> Unit,
+    onFix: (com.mauyaapps.aircode.editor.Fix) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.problems_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (problems.isEmpty()) Text(stringResource(R.string.problems_none))
+                problems.forEach { item ->
+                    Text(
+                        text = stringResource(R.string.problem_line, item.line, item.message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onShow(item) }
+                            .padding(top = 12.dp),
+                    )
+                    item.fixes.forEach { fix ->
+                        TextButton(onClick = { onFix(fix) }) { Text(fix.label) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
 

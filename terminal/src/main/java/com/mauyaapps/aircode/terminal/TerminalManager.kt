@@ -156,6 +156,7 @@ class TerminalManager(
     private fun interactiveSpec(): LaunchSpec {
         val paths = environment.paths
         workspace.mkdirs()
+        if (environment.isReady) environment.refreshNetwork()
         return if (environment.isReady) {
             ShellLauncher.proot(
                 paths,
@@ -183,6 +184,9 @@ class TerminalManager(
         )
         session.resize(columns, rows)
         session.start()
+        if (environment.isReady && !environment.hasScript) {
+            session.notice(appContext.getString(R.string.terminal_no_script_hint, environment.packagesLogTail().orEmpty()))
+        }
         _sessions.update { it + session }
         _activeId.value = session.id
         return session

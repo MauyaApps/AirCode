@@ -2,7 +2,13 @@ package com.mauyaapps.aircode.editor
 
 data class Fix(val label: String, val start: Int, val end: Int, val replacement: String)
 
-data class Diagnostic(val start: Int, val end: Int, val message: String, val fixes: List<Fix>)
+data class Diagnostic(
+    val start: Int,
+    val end: Int,
+    val message: String,
+    val fixes: List<Fix>,
+    val line: Int = 0,
+)
 
 object CodeAnalyzer {
 
@@ -65,7 +71,20 @@ object CodeAnalyzer {
         typos(text, language, skip, found)
         if (language == "python") pythonColons(text, comment, skip, scan, found)
         if (language in cLikeLanguages) semicolons(text, comment, skip, scan, found)
-        return found.sortedBy { it.start }.take(MAX_DIAGNOSTICS)
+        return withLines(text, found.sortedBy { it.start }.take(MAX_DIAGNOSTICS))
+    }
+
+    private fun withLines(text: String, sorted: List<Diagnostic>): List<Diagnostic> {
+        var line = 1
+        var position = 0
+        return sorted.map { item ->
+            val limit = minOf(item.start, text.length)
+            while (position < limit) {
+                if (text[position] == '\n') line++
+                position++
+            }
+            item.copy(line = line)
+        }
     }
 
     private class Scan(val depth: IntArray, val paren: IntArray)

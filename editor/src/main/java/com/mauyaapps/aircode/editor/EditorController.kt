@@ -27,7 +27,56 @@ class EditorController {
     var tapOffset by mutableStateOf<Int?>(null)
         private set
 
+    var problems by mutableStateOf<List<Diagnostic>>(emptyList())
+        private set
+
+    internal fun reportProblems(items: List<Diagnostic>) {
+        problems = items
+    }
+
+    fun languageOf(id: Long?): String {
+        if (id == null) return "plain"
+        languageOverrides[id]?.let { return it }
+        val declared = documents.firstOrNull { it.id == id }?.language ?: return "plain"
+        if (declared != "plain") return declared
+        return languageGuesses[id] ?: "plain"
+    }
+
+    fun isLanguageAutomatic(id: Long?): Boolean {
+        if (id == null) return true
+        return id !in languageOverrides && documents.firstOrNull { it.id == id }?.language == "plain"
+    }
+
+    fun setLanguage(language: String?) {
+        val id = activeId ?: return
+        if (language == null) languageOverrides.remove(id) else languageOverrides[id] = language
+    }
+
+    internal fun needsGuess(id: Long): Boolean = isLanguageAutomatic(id)
+
+    internal fun setGuessed(id: Long, language: String) {
+        if (languageGuesses[id] != language) languageGuesses[id] = language
+    }
+
+    fun applyFixToActive(fix: Fix) {
+        val id = activeId ?: return
+        applyFix(id, fix)
+    }
+
+    fun showProblem(item: Diagnostic) {
+        val id = activeId ?: return
+        val current = nativeValues[id] ?: return
+        val start = item.start.coerceIn(0, current.text.length)
+        val end = item.end.coerceIn(start, current.text.length)
+        val range = TextRange(start, end)
+        nativeMatch = range
+        nativeValues[id] = current.copy(selection = TextRange(start))
+        cursor = cursorOf(nativeValues.getValue(id))
+    }
+
     private val nativeValues = mutableStateMapOf<Long, TextFieldValue>()
+    private val languageOverrides = mutableStateMapOf<Long, String>()
+    private val languageGuesses = mutableStateMapOf<Long, String>()
     private val knownText = mutableMapOf<Long, String>()
     private var engine = EditorEngine.NATIVE
     private var searchQuery = ""
@@ -59,6 +108,7 @@ class EditorController {
         nativeValues.clear()
         nativeMatch = null
         tapOffset = null
+        problems = emptyList()
         searchResult = SearchResult(current = 0, total = 0)
         if (value == EditorEngine.NATIVE) syncNative()
     }
@@ -97,6 +147,8 @@ class EditorController {
     private fun syncNative() {
         val ids = documents.map { it.id }.toSet()
         nativeValues.keys.toList().filter { it !in ids }.forEach { nativeValues.remove(it) }
+        languageOverrides.keys.toList().filter { it !in ids }.forEach { languageOverrides.remove(it) }
+        languageGuesses.keys.toList().filter { it !in ids }.forEach { languageGuesses.remove(it) }
         documents.forEach { document ->
             if (document.id !in nativeValues) nativeValues[document.id] = TextFieldValue(textFor(document))
         }
@@ -242,7 +294,9 @@ class EditorController {
                 "Движок: встроенный редактор\n" +
                     "Документов: ${documents.size}, показан: $id\n" +
                     "Длина текста: ${value?.text?.length ?: 0}\n" +
-                    "Язык: ${documents.firstOrNull { it.id == id }?.language}",
+                    "Язык: ${documents.firstOrNull { it.id == id }?.language}\n" +
+                    "Подсвеченных фрагментов: ${highlightCount(value?.text, documents.firstOrNull { it.id == id }?.language)}\n" +
+                    "Найдено проблем: ${problems.size}",
             )
             return
         }
@@ -281,6 +335,9 @@ class EditorController {
         )
         view.invalidate()
     }
+
+    private fun highlightCount(text: String?, language: String?): Int =
+        if (text == null || language == null) 0 else SyntaxHighlighter.tokenize(text, language).size
 
     private fun layerName(type: Int): String = when (type) {
         View.LAYER_TYPE_SOFTWARE -> "software"
