@@ -43,6 +43,8 @@
     <string name="install_step_download">Загрузка Alpine Linux…</string>
     <string name="install_step_extract">Распаковка…</string>
     <string name="install_step_configure">Настройка…</string>
+    <string name="install_step_check">Проверка совместимости с вашим телефоном…</string>
+    <string name="install_failed_proot">Linux не запускается на этом телефоне</string>
     <string name="install_step_packages">Установка базовых пакетов…</string>
     <string name="install_failed_arch">Архитектура процессора не поддерживается</string>
     <string name="install_failed_network">Ошибка сети</string>

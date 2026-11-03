@@ -56,6 +56,67 @@ class ProotEnvironment(
         }
     }
 
+    private var repairAttempted = false
+
+    suspend fun repairIfNeeded() {
+        if (_state.value != EnvironmentState.Ready || repairAttempted) return
+        val needsMode = !paths.modeFile.isFile
+        val needsPackages = !hasScript
+        if (!needsMode && !needsPackages) return
+        repairAttempted = true
+        _state.value = EnvironmentState.Installing(R.string.install_step_check)
+        try {
+            withContext(Dispatchers.IO) {
+                if (needsMode && selectMode() == null) throw InstallException(R.string.install_failed_proot, probeLog)
+                if (!hasScript) {
+                    val pins = resolvePins()
+                    writeHosts(pins)
+                    refreshNetwork()
+                    val log = installBasePackages(pins)
+                    if (log.isEmpty()) paths.packagesLog.delete() else paths.packagesLog.writeText(log)
+                    writeHosts(emptyMap())
+                }
+            }
+            _state.value = EnvironmentState.Ready
+        } catch (e: InstallException) {
+            _state.value = EnvironmentState.Failed(e.reason, e.message)
+        } catch (e: IOException) {
+            _state.value = EnvironmentState.Ready
+        }
+    }
+
+    @Volatile
+    private var probeLog: String = ""
+
+    private fun describeDevice(): String {
+        val proot = try {
+            val process = ProcessBuilder(paths.prootBinary.path, "--version").redirectErrorStream(true).start()
+            val text = process.inputStream.bufferedReader().use { it.readText() }
+            process.waitFor()
+            text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim().take(80)
+        } catch (e: IOException) {
+            "не запускается: ${e.message}"
+        }
+        return "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}, " +
+            "ядро ${System.getProperty("os.version")}, ABI ${Build.SUPPORTED_ABIS.firstOrNull()}, proot: $proot"
+    }
+
+    private fun selectMode(): ProotMode? {
+        val report = StringBuilder(describeDevice()).append('\n')
+        for (mode in listOf(ProotMode.SECCOMP, ProotMode.PTRACE)) {
+            runGuest(PROBE, mode)
+            val output = lastOutput
+            if (output.contains("AIRCODE_OK") && !output.contains("not implemented", ignoreCase = true)) {
+                paths.saveMode(mode)
+                probeLog = ""
+                return mode
+            }
+            report.append(mode.name).append(": ").append(output.trim().takeLast(PROBE_LOG_LIMIT)).append('\n')
+        }
+        probeLog = report.toString()
+        return null
+    }
+
     suspend fun reset() {
         if (_state.value is EnvironmentState.Installing) return
         withContext(Dispatchers.IO) {
@@ -100,6 +161,9 @@ class ProotEnvironment(
         _state.value = EnvironmentState.Installing(R.string.install_step_configure)
         val pins = resolvePins()
         configureGuest(pins)
+
+        _state.value = EnvironmentState.Installing(R.string.install_step_check)
+        if (selectMode() == null) throw InstallException(R.string.install_failed_proot, probeLog)
 
         _state.value = EnvironmentState.Installing(R.string.install_step_packages)
         val packagesLog = installBasePackages(pins)
@@ -184,8 +248,8 @@ class ProotEnvironment(
     @Volatile
     private var lastOutput: String = ""
 
-    private fun runGuest(script: String) {
-        val spec = ShellLauncher.proot(paths, workspace, listOf("/bin/sh", "-c", script))
+    private fun runGuest(script: String, mode: ProotMode = paths.mode()) {
+        val spec = ShellLauncher.proot(paths, workspace, listOf("/bin/sh", "-c", script), mode = mode)
         val collected = StringBuffer()
         try {
             val process = ProcessBuilder(spec.command)
@@ -295,6 +359,8 @@ class ProotEnvironment(
         const val DOWNLOAD_CHUNK = 64 * 1024
         const val DETAIL_LIMIT = 400
         const val PACKAGE_LOG_LIMIT = 500
+        const val PROBE_LOG_LIMIT = 300
+        const val PROBE = "pwd; ls / >/dev/null && cat /etc/alpine-release && apk --version && echo AIRCODE_OK"
         const val HINT_LIMIT = 700
         const val PIN_LIMIT = 4
         const val READ_CHUNK = 4096

@@ -28,6 +28,29 @@ class ShellLauncherTest {
     }
 
     @Test
+    fun seccompModeDoesNotDisableSeccomp() {
+        val spec = ShellLauncher.proot(paths, workspace, listOf("/bin/sh"), mode = ProotMode.SECCOMP)
+        assertTrue("PROOT_NO_SECCOMP" !in spec.environment)
+    }
+
+    @Test
+    fun ptraceModeDisablesSeccomp() {
+        val spec = ShellLauncher.proot(paths, workspace, listOf("/bin/sh"), mode = ProotMode.PTRACE)
+        assertEquals("1", spec.environment["PROOT_NO_SECCOMP"])
+    }
+
+    @Test
+    fun savedModeIsUsedAndDefaultIsSeccomp() {
+        val base = java.nio.file.Files.createTempDirectory("aircode-mode").toFile()
+        val real = TerminalPaths(base, File("/lib"))
+        assertEquals(ProotMode.SECCOMP, real.mode())
+        real.saveMode(ProotMode.PTRACE)
+        assertEquals(ProotMode.PTRACE, real.mode())
+        assertEquals("1", ShellLauncher.proot(real, workspace, listOf("/bin/sh")).environment["PROOT_NO_SECCOMP"])
+        base.deleteRecursively()
+    }
+
+    @Test
     fun guestShellUsesPtyWrapperOnlyWhenAvailable() {
         assertEquals("/usr/local/bin/aircode-pty", ShellLauncher.interactiveGuestShell(true).first())
         assertEquals(listOf("/bin/sh", "-l", "-i"), ShellLauncher.interactiveGuestShell(false))

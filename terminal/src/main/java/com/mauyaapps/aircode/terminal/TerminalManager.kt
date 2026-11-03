@@ -40,6 +40,7 @@ class TerminalManager(
 
     init {
         instance = this
+        scope.launch { environment.repairIfNeeded() }
         scope.launch {
             combine(sessions, environment.state) { list, state ->
                 list.isNotEmpty() || state is EnvironmentState.Installing

@@ -4,6 +4,11 @@ import java.io.File
 
 enum class ShellMode { PROOT, NATIVE }
 
+enum class ProotMode(val noSeccomp: Boolean) {
+    SECCOMP(noSeccomp = false),
+    PTRACE(noSeccomp = true),
+}
+
 class TerminalPaths(filesDir: File, val nativeLibDir: File) {
     val base = File(filesDir, "linux")
     val rootfs = File(base, "rootfs")
@@ -18,6 +23,21 @@ class TerminalPaths(filesDir: File, val nativeLibDir: File) {
     val sizeFile = File(rootfs, "tmp/aircode-size")
     val scriptBinary = File(rootfs, "usr/bin/script")
     val packagesLog = File(base, "packages.log")
+    val modeFile = File(base, ".proot-mode")
+
+    fun mode(): ProotMode {
+        val saved = try {
+            if (modeFile.isFile) modeFile.readText().trim() else null
+        } catch (e: java.io.IOException) {
+            null
+        }
+        return ProotMode.entries.firstOrNull { it.name == saved } ?: ProotMode.SECCOMP
+    }
+
+    fun saveMode(mode: ProotMode) {
+        base.mkdirs()
+        modeFile.writeText(mode.name)
+    }
 }
 
 data class LaunchSpec(
@@ -39,6 +59,7 @@ object ShellLauncher {
         guestCommand: List<String>,
         columns: Int = DEFAULT_COLUMNS,
         rows: Int = DEFAULT_ROWS,
+        mode: ProotMode = paths.mode(),
     ): LaunchSpec {
         val command = buildList {
             add(paths.prootBinary.path)
@@ -68,11 +89,11 @@ object ShellLauncher {
             add("AIRCODE_ROWS=$rows")
             addAll(guestCommand)
         }
-        val environment = mapOf(
-            "PROOT_LOADER" to paths.prootLoader.path,
-            "PROOT_TMP_DIR" to paths.tmp.path,
-            "PROOT_NO_SECCOMP" to "1",
-        )
+        val environment = buildMap {
+            put("PROOT_LOADER", paths.prootLoader.path)
+            put("PROOT_TMP_DIR", paths.tmp.path)
+            if (mode.noSeccomp) put("PROOT_NO_SECCOMP", "1")
+        }
         return LaunchSpec(command, environment, workspace)
     }
 
